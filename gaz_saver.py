@@ -93,24 +93,31 @@ def find_station(features: list, address_query: str) -> dict | None:
     return None
 
 
-def format_price(price_entry: dict) -> str:
-    """Format a price entry for display."""
+def parse_price_value(price_entry: dict) -> float:
+    """Extract numeric price value (dollars) for sorting."""
     if not price_entry.get("IsAvailable") or price_entry.get("Price") is None:
-        return f"{DIM}  n/a  {RESET}"
+        return float('inf')  # Put unavailable at the bottom
 
     price_str = price_entry["Price"]
-    # Remove the ¢ sign and parse
     price_val = price_str.replace("¢", "").replace("\u00a2", "").strip()
     try:
         cents = float(price_val)
-        dollars = cents / 100
-        return f"{BOLD}{dollars:.3f}${RESET}"
+        return cents / 100
     except ValueError:
-        return price_str
+        return float('inf')
+
+
+def format_price(price_entry: dict) -> str:
+    """Format a price entry for display."""
+    val = parse_price_value(price_entry)
+    if val == float('inf'):
+        return f"{DIM}  n/a  {RESET}"
+
+    return f"{BOLD}{val:.3f}${RESET}"
 
 
 def display_results(config: dict, data: dict):
-    """Display matched station prices grouped by city."""
+    """Display matched station prices in a sorted table."""
     features = data.get("features", [])
     metadata = data.get("metadata", {})
     generated_at = metadata.get("generated_at", "unknown")
@@ -123,27 +130,22 @@ def display_results(config: dict, data: dict):
 
     # Header
     header = (
-        f"  {'Station':<40} {'Régulier':>10} {'Super':>10} {'Diesel':>10}"
+        f"  {CYAN}{'City':<20}{RESET} {'Station':<40} {'Régulier':>10} {'Super':>10} {'Delta':>10}"
     )
     print(f"{BOLD}{header}{RESET}")
-    print(f"  {'─' * 70}")
+    print(f"  {'─' * 95}")
 
+    rows = []
     not_found = []
 
     for city in config["cities"]:
         city_name = city["name"]
-        print(f"\n  {CYAN}{BOLD}{city_name}{RESET}")
-
         for station_cfg in city.get("stations", []):
             address_query = station_cfg["address"]
             match = find_station(features, address_query)
 
             if match is None:
                 not_found.append(f"{city_name}: {address_query}")
-                print(
-                    f"  {YELLOW}⚠ {address_query:<38}{RESET}"
-                    f" {'not found':>10} {'':>10} {'':>10}"
-                )
                 continue
 
             props = match["properties"]
@@ -151,28 +153,44 @@ def display_results(config: dict, data: dict):
             brand = props.get("brand", "")
             prices = props.get("Prices", [])
 
-            # Build a short display name: brand + truncated name
             if brand and brand != "Aucun":
                 display_name = f"{brand} — {name}"
             else:
                 display_name = name
 
-            # Truncate if too long
             if len(display_name) > 38:
                 display_name = display_name[:35] + "..."
 
-            # Extract prices by gas type
-            price_map = {}
-            for p in prices:
-                price_map[p.get("GasType", "")] = p
+            price_map = {p.get("GasType", ""): p for p in prices}
+            reg_entry = price_map.get("Régulier", {})
+            
+            rows.append({
+                "city": city_name,
+                "name": display_name,
+                "sort_val": parse_price_value(reg_entry),
+                "reg": format_price(reg_entry),
+                "sup": format_price(price_map.get("Super", {})),
+            })
 
-            reg = format_price(price_map.get("Régulier", {}))
-            sup = format_price(price_map.get("Super", {}))
-            die = format_price(price_map.get("Diesel", {}))
+    # Sort by Régulier price
+    rows.sort(key=lambda x: x["sort_val"])
 
-            print(f"  {display_name:<40} {reg:>10} {sup:>10} {die:>10}")
+    prev_price = None
+    for row in rows:
+        delta_str = ""
+        curr_price = row["sort_val"]
+        
+        if prev_price is not None and curr_price != float('inf') and prev_price != float('inf'):
+            delta = curr_price - prev_price
+            sign = "+" if delta > 0 else ""
+            delta_str = f"{sign}{delta:.3f}$"
+            if delta == 0:
+                delta_str = "0.000$"
+        
+        print(f"  {CYAN}{row['city']:<20}{RESET} {row['name']:<40} {row['reg']:>10} {row['sup']:>10} {delta_str:>10}")
+        prev_price = curr_price
 
-    print(f"\n  {'─' * 70}")
+    print(f"  {'─' * 95}")
 
     if not_found:
         print(f"\n{YELLOW}⚠ Stations not found ({len(not_found)}):{RESET}")

@@ -20,5 +20,7 @@ cities:
   - name: "Grenneville"
     stations:
       - address: "54 rue Maple"
-      - address: "5550 boul. Henri-Bourassa"
-      - address: "1355 boul. Lebourgneuf"
+  
+  - name: "Mont-Tremblant"
+    stations:
+      - address: "231 rue de Saint-Jovite"
