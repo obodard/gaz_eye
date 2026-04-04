@@ -139,7 +139,7 @@ def display_results(config: dict, data: dict):
     not_found = []
 
     for city in config["cities"]:
-        city_name = city["name"]
+        city_name = city["city"]
         for station_cfg in city.get("stations", []):
             address_query = station_cfg["address"]
             match = find_station(features, address_query)
