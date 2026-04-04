@@ -1,0 +1,24 @@
+# Gas stations to monitor — grouped by city
+# Each station is identified by a partial address substring (case-insensitive match)
+# To find valid addresses, visit https://regieessencequebec.ca/
+
+cities:
+  - name: "Montréal"
+    stations:
+      - address: "9531 Boul. Gouin"
+      - address: "7575 boul. Décarie"
+      - address: "5200 Métropolitain"
+
+  - name: "Saint-Andr\u00E9-Avellin"
+    stations:
+      - address: "615 rte 321 nord,"
+
+  - name: "CH\u00C9N\u00C9VILLE"
+    stations:
+      - address: "115 rue Principale"
+
+  - name: "Grenneville"
+    stations:
+      - address: "54 rue Maple"
+      - address: "5550 boul. Henri-Bourassa"
+      - address: "1355 boul. Lebourgneuf"
