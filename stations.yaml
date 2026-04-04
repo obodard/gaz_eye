@@ -12,6 +12,7 @@ cities:
   - city: "Saint-Andr\u00E9-Avellin"
     stations:
       - address: "615 rte 321 nord,"
+        reference_station: yes
 
   - city: "CH\u00C9N\u00C9VILLE"
     stations:

@@ -130,7 +130,7 @@ def display_results(config: dict, data: dict):
 
     # Header
     header = (
-        f"  {CYAN}{'City':<20}{RESET} {'Station':<40} {'Régulier':>10} {'Super':>10} {'Delta':>10}"
+        f"  {CYAN}{'City':<20}{RESET} {'Station':<40} {'Régulier':>10} {'Delta':>10} {'50L (±)':>10}"
     )
     print(f"{BOLD}{header}{RESET}")
     print(f"  {'─' * 95}")
@@ -169,26 +169,46 @@ def display_results(config: dict, data: dict):
                 "name": display_name,
                 "sort_val": parse_price_value(reg_entry),
                 "reg": format_price(reg_entry),
-                "sup": format_price(price_map.get("Super", {})),
             })
 
     # Sort by Régulier price
     rows.sort(key=lambda x: x["sort_val"])
 
-    prev_price = None
+    # Find the reference station price if any
+    ref_price = None
+    for city in config["cities"]:
+        for station_cfg in city.get("stations", []):
+            if station_cfg.get("reference_station"):
+                address_query = station_cfg["address"]
+                match = find_station(features, address_query)
+                if match:
+                    # Note: We assume the first price in the list is Régulier
+                    ref_prices = match["properties"].get("Prices", [])
+                    for p in ref_prices:
+                        if p.get("GasType") == "Régulier":
+                            ref_price = parse_price_value(p)
+                            break
+                break
+
     for row in rows:
         delta_str = ""
+        delta_50_str = ""
         curr_price = row["sort_val"]
         
-        if prev_price is not None and curr_price != float('inf') and prev_price != float('inf'):
-            delta = curr_price - prev_price
-            sign = "+" if delta > 0 else ""
-            delta_str = f"{sign}{delta:.3f}$"
+        if ref_price is not None and curr_price != float('inf') and ref_price != float('inf'):
+            delta = curr_price - ref_price
+            delta_50 = delta * 50
+            
+            sign = "+" if delta > 0 else "-" if delta < 0 else ""
+            
             if delta == 0:
                 delta_str = "0.000$"
+                delta_50_str = "0.00$"
+            else:
+                delta_str = f"{sign}{abs(delta):.3f}$"
+                delta_50_str = f"{sign}{abs(delta_50):.2f}$"
         
-        print(f"  {CYAN}{row['city']:<20}{RESET} {row['name']:<40} {row['reg']:>10} {row['sup']:>10} {delta_str:>10}")
-        prev_price = curr_price
+        print(f"  {CYAN}{row['city']:<20}{RESET} {row['name']:<40} {row['reg']:>10} {delta_str:>10} {BOLD}{delta_50_str:>10}{RESET}")
 
     print(f"  {'─' * 95}")
 
