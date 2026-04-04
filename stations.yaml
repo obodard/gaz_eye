@@ -5,9 +5,9 @@
 cities:
   - city: "Montréal"
     stations:
-      - address: "9531 Boul. Gouin"
-      - address: "7575 boul. Décarie"
-      - address: "5200 Métropolitain"
+      - address: "9403 boul. des Sciences"
+      - address: "4920 rue Beaubien est"
+        alias: "Maison"
 
   - city: "Saint-Andr\u00E9-Avellin"
     stations:
@@ -25,3 +25,16 @@ cities:
   - city: "Mont-Tremblant"
     stations:
       - address: "231 rue de Saint-Jovite"
+      - address: "282 117"
+      - address: "445 rte 117"
+        alias: "Sortie Tremblant"
+
+  - city: "Sainte-Agathe-des-Monts"
+    stations:
+      - address: "5787 rte 117 nord"
+        alias: "Début 117"
+
+  - city: "Mont-Blanc"
+    stations:
+      - address: "1468 rte 117"
+        alias: "117 retour"

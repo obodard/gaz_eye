@@ -107,13 +107,16 @@ def parse_price_value(price_entry: dict) -> float:
         return float('inf')
 
 
-def format_price(price_entry: dict) -> str:
-    """Format a price entry for display."""
+def format_price(price_entry: dict, width: int = 10) -> str:
+    """Format a price entry for display with fixed width."""
     val = parse_price_value(price_entry)
     if val == float('inf'):
-        return f"{DIM}  n/a  {RESET}"
+        txt = "n/a"
+    else:
+        txt = f"{val:.3f}$"
 
-    return f"{BOLD}{val:.3f}${RESET}"
+    padded = f"{txt:>{width}}"
+    return f"{BOLD}{padded}{RESET}"
 
 
 def display_results(config: dict, data: dict):
@@ -129,11 +132,12 @@ def display_results(config: dict, data: dict):
     print()
 
     # Header
+    # Column widths: Station=50, Price=10, Delta=10, Total=10
     header = (
-        f"  {CYAN}{'City':<20}{RESET} {'Station':<40} {'Régulier':>10} {'Delta':>10} {'50L (±)':>10}"
+        f"  {CYAN}{'Station':<50}{RESET} {'Régulier':>10} {'Delta':>10} {'50L (±)':>10}"
     )
     print(f"{BOLD}{header}{RESET}")
-    print(f"  {'─' * 95}")
+    print(f"  {'─' * 83}")
 
     rows = []
     not_found = []
@@ -153,20 +157,19 @@ def display_results(config: dict, data: dict):
             brand = props.get("brand", "")
             prices = props.get("Prices", [])
 
-            if brand and brand != "Aucun":
-                display_name = f"{brand} — {name}"
-            else:
-                display_name = name
-
-            if len(display_name) > 38:
-                display_name = display_name[:35] + "..."
+            alias = station_cfg.get("alias", "")
+            brand_display = brand if brand and brand != "Aucun" else "Inconnu"
+            
+            # Simplified column 1: City, Brand [Alias]
+            city_col = f"{city_name}, {brand_display}"
+            if alias:
+                city_col += f" ({alias})"
 
             price_map = {p.get("GasType", ""): p for p in prices}
             reg_entry = price_map.get("Régulier", {})
             
             rows.append({
-                "city": city_name,
-                "name": display_name,
+                "station": city_col,
                 "sort_val": parse_price_value(reg_entry),
                 "reg": format_price(reg_entry),
             })
@@ -208,9 +211,14 @@ def display_results(config: dict, data: dict):
                 delta_str = f"{sign}{abs(delta):.3f}$"
                 delta_50_str = f"{sign}{abs(delta_50):.2f}$"
         
-        print(f"  {CYAN}{row['city']:<20}{RESET} {row['name']:<40} {row['reg']:>10} {delta_str:>10} {BOLD}{delta_50_str:>10}{RESET}")
+        # Pad delta strings before potential coloring
+        reg_str = row["reg"]  # Already padded and colored by format_price(..., 10)
+        delta_padded = f"{delta_str:>10}"
+        delta_50_padded = f"{delta_50_str:>10}"
+        
+        print(f"  {CYAN}{row['station']:<50}{RESET} {reg_str} {delta_padded} {BOLD}{delta_50_padded}{RESET}")
 
-    print(f"  {'─' * 95}")
+    print(f"  {'─' * 83}")
 
     if not_found:
         print(f"\n{YELLOW}⚠ Stations not found ({len(not_found)}):{RESET}")

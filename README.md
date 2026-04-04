@@ -1,6 +1,6 @@
 # ⛽ Gaz Saver — Régie Essence Québec
 
-A Python CLI tool to monitor gas prices at specific stations in Quebec. It fetches real-time data from the official [Régie Essence Québec](https://regieessencequebec.ca/) public data source and displays results in a formatted terminal table, grouped by city.
+A Python CLI tool to monitor gas prices at specific stations in Quebec. It fetches real-time data from the official [Régie Essence Québec](https://regieessencequebec.ca/) public data source and displays results in a formatted terminal table, grouped by city and sorted by price.
 
 ## 🚀 Quick Start
 
@@ -21,14 +21,21 @@ A Python CLI tool to monitor gas prices at specific stations in Quebec. It fetch
 
 ## ⚙️ Configuration (`stations.yaml`)
 
-Edit `stations.yaml` to list your 12 stations grouped by city. The tool uses a **partial address match** (case-insensitive) to find stations in the official database.
+The tool uses a **partial address match** (case-insensitive) to find stations in the official database. You can also define an **alias** for each station to make them easier to identify.
 
 ```yaml
 cities:
-  - name: "Montréal"
+  - city: "Montréal"
     stations:
-      - address: "9531 Boul. Gouin"  # Substring match
-      - address: "7575 boul. Décarie"
+      - address: "9403 boul. des Sciences" 
+        alias: "Boulot"
+      - address: "4920 rue Beaubien est"
+        alias: "Maison"
+
+  - city: "Saint-André-Avellin"
+    stations:
+      - address: "615 rte 321 nord"
+        reference_station: yes  # Used for Delta calculations
 ```
 
 > [!TIP]
@@ -42,7 +49,11 @@ cities:
 
 ## 📊 Features
 
-- **Real-time Data:** Fetches the latest GeoJSON data published by the Régie de l'énergie.
-- **Grouped Display:** Organizes prices by city for easy comparison.
-- **Color-coded Output:** High-visibility terminal output showing prices for Régulier, Super, and Diesel.
+- **Real-time Data:** Fetches the latest GeoJSON data directly from the Régie de l'énergie.
+- **Smart Sorting:** Automatically sorts stations by price (cheapest first).
+- **Price Delta:** Compares all stations to your designated `reference_station`.
+- **Savings Calculation:** Calculates the estimated difference for a 50L fill-up.
+- **Custom Aliases:** Add labels like "Home" or "Work" for quick identification.
+- **Color-coded Output:** High-visibility terminal output with CYAN city labels and BOLD price highlights.
+- **Automatic Alignment:** Columns remain aligned even with long city names (e.g., *Sainte-Agathe-des-Monts*).
 - **No API Key Required:** Uses public consumer-facing endpoints.
