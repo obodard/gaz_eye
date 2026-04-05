@@ -21,6 +21,10 @@ cities:
   - city: "Grenneville"
     stations:
       - address: "54 rue Maple"
+
+  - city: "Brownsburg-Chatham"
+    stations:
+      - address: "125 rte du Canton"
   
   - city: "Mont-Tremblant"
     stations:
