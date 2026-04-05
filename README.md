@@ -47,6 +47,24 @@ cities:
 - `requests`
 - `pyyaml`
 
+## 🐳 Docker Deployment
+
+You can run Gaz Saver as a containerized service that automatically updates daily at 4:00 PM EST.
+
+1. **Build and start the container:**
+   ```bash
+   docker-compose up -d
+   ```
+
+2. **Check the output:**
+   Since the script runs via cron, you can check the latest output in the container logs:
+   ```bash
+   docker logs gaz_eye_container
+   ```
+
+3. **Updating Configuration:**
+   The `stations.yaml` file is bind-mounted, so you can edit it on your host machine without rebuilding the container. The changes will be picked up by the next cron run.
+
 ## 📊 Features
 
 - **Real-time Data:** Fetches the latest GeoJSON data directly from the Régie de l'énergie.
