@@ -43,6 +43,18 @@ def load_config(path: Path) -> dict:
         print(f"{RED}Error:{RESET} Invalid config — missing 'cities' key in {path}")
         sys.exit(1)
 
+    # Normalize settings to a dictionary
+    raw_settings = config.get("settings", [])
+    settings = {}
+    if isinstance(raw_settings, list):
+        for item in raw_settings:
+            if isinstance(item, dict):
+                settings.update(item)
+    
+    # Add defaults if not present
+    config["tank_litres"] = settings.get("tank_litres", 50)
+    config["gaz_type"] = settings.get("gaz_type", "Régulier")
+
     return config
 
 
@@ -131,10 +143,13 @@ def display_results(config: dict, data: dict):
     print(f"{DIM}Données: {generated_at} ({total_stations} stations){RESET}")
     print()
 
+    tank_litres = config.get("tank_litres", 50)
+    gaz_type = config.get("gaz_type", "Régulier")
+
     # Header
     # Column widths: Station=50, Price=10, Delta=10, Total=10
     header = (
-        f"  {CYAN}{'Station':<50}{RESET} {'Régulier':>10} {'Delta':>10} {'50L (±)':>10}"
+        f"  {CYAN}{'Station':<50}{RESET} {gaz_type:>10} {'Delta':>10} {tank_litres:>2}L (±)"
     )
     print(f"{BOLD}{header}{RESET}")
     print(f"  {'─' * 83}")
@@ -166,15 +181,15 @@ def display_results(config: dict, data: dict):
                 city_col += f" ({alias})"
 
             price_map = {p.get("GasType", ""): p for p in prices}
-            reg_entry = price_map.get("Régulier", {})
+            selected_entry = price_map.get(gaz_type, {})
             
             rows.append({
                 "station": city_col,
-                "sort_val": parse_price_value(reg_entry),
-                "reg": format_price(reg_entry),
+                "sort_val": parse_price_value(selected_entry),
+                "price_formatted": format_price(selected_entry),
             })
 
-    # Sort by Régulier price
+    # Sort by selected gas type price
     rows.sort(key=lambda x: x["sort_val"])
 
     # Find the reference station price if any
@@ -188,35 +203,36 @@ def display_results(config: dict, data: dict):
                     # Note: We assume the first price in the list is Régulier
                     ref_prices = match["properties"].get("Prices", [])
                     for p in ref_prices:
-                        if p.get("GasType") == "Régulier":
+                        if p.get("GasType") == gaz_type:
                             ref_price = parse_price_value(p)
                             break
                 break
 
     for row in rows:
         delta_str = ""
-        delta_50_str = ""
+        tank_delta_str = ""
         curr_price = row["sort_val"]
+        
+        # Pad delta strings before potential coloring
+        price_str = row["price_formatted"]  # Already padded and colored by format_price(..., 10)
         
         if ref_price is not None and curr_price != float('inf') and ref_price != float('inf'):
             delta = curr_price - ref_price
-            delta_50 = delta * 50
+            tank_delta = delta * tank_litres
             
             sign = "+" if delta > 0 else "-" if delta < 0 else ""
             
             if delta == 0:
                 delta_str = "0.000$"
-                delta_50_str = "0.00$"
+                tank_delta_str = "0.00$"
             else:
                 delta_str = f"{sign}{abs(delta):.3f}$"
-                delta_50_str = f"{sign}{abs(delta_50):.2f}$"
+                tank_delta_str = f"{sign}{abs(tank_delta):.2f}$"
         
-        # Pad delta strings before potential coloring
-        reg_str = row["reg"]  # Already padded and colored by format_price(..., 10)
         delta_padded = f"{delta_str:>10}"
-        delta_50_padded = f"{delta_50_str:>10}"
+        tank_delta_padded = f"{tank_delta_str:>10}"
         
-        print(f"  {CYAN}{row['station']:<50}{RESET} {reg_str} {delta_padded} {BOLD}{delta_50_padded}{RESET}")
+        print(f"  {CYAN}{row['station']:<50}{RESET} {price_str} {delta_padded} {BOLD}{tank_delta_padded}{RESET}")
 
     print(f"  {'─' * 83}")
 

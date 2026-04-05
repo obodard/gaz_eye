@@ -36,6 +36,10 @@ cities:
     stations:
       - address: "615 rte 321 nord"
         reference_station: yes  # Used for Delta calculations
+
+settings:
+  - tank_litres: 50             # Tank capacity for savings calculation
+  - gaz_type: "Régulier"        # "Régulier" | "Super" | "Diesel"
 ```
 
 > [!TIP]
@@ -70,7 +74,8 @@ You can run Gaz Saver as a containerized service that automatically updates dail
 - **Real-time Data:** Fetches the latest GeoJSON data directly from the Régie de l'énergie.
 - **Smart Sorting:** Automatically sorts stations by price (cheapest first).
 - **Price Delta:** Compares all stations to your designated `reference_station`.
-- **Savings Calculation:** Calculates the estimated difference for a 50L fill-up.
+- **Customizable Savings:** Calculates the estimated difference for a fuel tank of any size (default: 50L).
+- **Multiple Fuel Types:** Supports tracking Régulier, Super, or Diesel prices.
 - **Custom Aliases:** Add labels like "Home" or "Work" for quick identification.
 - **Color-coded Output:** High-visibility terminal output with CYAN city labels and BOLD price highlights.
 - **Automatic Alignment:** Columns remain aligned even with long city names (e.g., *Sainte-Agathe-des-Monts*).

@@ -38,3 +38,7 @@ cities:
     stations:
       - address: "1468 rte 117"
         alias: "117 retour"
+
+settings:
+  - tank_litres: 50
+  - gaz_type: "Régulier" # "Régulier" | "Super" | "Diesel"
