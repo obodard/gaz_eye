@@ -1,0 +1,523 @@
+/* ─────────────────────────────────────────
+   gaz_eye — Design Tokens & Layout
+   ───────────────────────────────────────── */
+
+/* 12 design token CSS custom properties */
+:root {
+    --bg: #F9FAFB;
+    --surface: #FFFFFF;
+    --border: #E5E7EB;
+    --text-primary: #111827;
+    --text-secondary: #6B7280;
+    --accent: #16A34A;
+    --accent-light: #DCFCE7;
+    --route-1: #2563EB;
+    --route-2: #9333EA;
+    --route-3: #EA580C;
+    --warning: #F59E0B;
+    --error: #DC2626;
+}
+
+/* Utility: hidden state (complements Tailwind .hidden) */
+.hidden {
+    display: none !important;
+}
+
+/* ─────────────────────────────────────────
+   Full-viewport layout
+   ───────────────────────────────────────── */
+
+body {
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+}
+
+/* ─────────────────────────────────────────
+   Header
+   ───────────────────────────────────────── */
+
+header {
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    padding: 8px 16px;
+    gap: 8px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+#trip-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    flex-wrap: wrap;
+}
+
+#trip-form input[type="text"],
+#trip-form input[type="number"] {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 14px;
+    outline: none;
+    background: var(--surface);
+    color: var(--text-primary);
+}
+
+#trip-form input:focus {
+    border-color: var(--accent);
+}
+
+#find-routes-btn {
+    background: #111827;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 36px;
+}
+
+#find-routes-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+#settings-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    font-size: 18px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+#settings-btn:hover {
+    background: #F3F4F6;
+}
+
+#add-waypoint-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+
+#waypoint-container {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+#remove-waypoint-0 {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 16px;
+    color: var(--text-secondary);
+    border-radius: 4px;
+}
+
+/* ─────────────────────────────────────────
+   Main split-pane
+   ───────────────────────────────────────── */
+
+main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+/* Cards panel */
+#cards-panel {
+    width: 384px;  /* w-96 */
+    flex-shrink: 0;
+    overflow-y: auto;
+    background: var(--bg);
+    border-right: 1px solid var(--border);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Map container — Google Maps needs explicit height */
+#map {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+    height: 100%;
+}
+
+/* ─────────────────────────────────────────
+   Footer
+   ───────────────────────────────────────── */
+
+footer {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+#data-timestamp {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* ─────────────────────────────────────────
+   Spinners & loading
+   ───────────────────────────────────────── */
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.btn-spinner {
+    animation: spin 0.8s linear infinite;
+}
+
+/* Semi-transparent overlay over the map during API call */
+#map-spinner-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(249, 250, 251, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+}
+
+.map-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+/* ─────────────────────────────────────────
+   Settings drawer & overlay
+   ───────────────────────────────────────── */
+
+/* Overlay covers only the #map area */
+#settings-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.2);
+    z-index: 50;
+}
+
+.settings-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100%;
+    width: 288px;
+    background: var(--surface);
+    transform: translateX(100%);
+    transition: transform 200ms ease;
+    z-index: 100;
+    padding: 16px;
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+    overflow-y: auto;
+}
+
+.settings-drawer.open {
+    transform: translateX(0);
+}
+
+.drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.drawer-header h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+#close-settings-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+    color: var(--text-secondary);
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.drawer-section {
+    margin-bottom: 20px;
+}
+
+.drawer-section label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.drawer-section input[type="number"] {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.drawer-section input[type="range"] {
+    width: 100%;
+    margin-bottom: 4px;
+}
+
+.slider-label {
+    font-size: 13px;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+/* Button groups */
+.btn-group {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.btn-group button {
+    flex: 1;
+    border: none;
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    padding: 6px 8px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+
+.btn-group button:last-child {
+    border-right: none;
+}
+
+.btn-group button.active {
+    background: #111827;
+    color: white;
+}
+
+#reset-settings-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-decoration: underline;
+    padding: 0;
+    margin-top: 8px;
+}
+
+/* ─────────────────────────────────────────
+   Route cards
+   ───────────────────────────────────────── */
+
+.route-card {
+    position: relative;
+    border-left: 4px solid;
+    border-radius: 8px;
+    padding: 16px;
+    cursor: pointer;
+    background: var(--surface);
+    transition: outline 0.1s;
+}
+
+.route-card.best-value {
+    background: var(--accent-light);
+    border: 2px solid var(--accent);
+}
+
+.route-card.selected {
+    outline: 2px solid;
+    outline-offset: 2px;
+}
+
+.route-card.dimmed {
+    opacity: 0.5;
+}
+
+.route-card.no-stations {
+    cursor: default;
+}
+
+/* Skeleton loading cards */
+.skeleton-card {
+    border-radius: 8px;
+    height: 120px;
+    background: var(--border);
+    padding: 16px;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Best value badge */
+.best-value-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: var(--accent);
+    color: white;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 9999px;
+}
+
+/* Empty state */
+#empty-state {
+    font-size: 14px;
+    color: var(--text-secondary);
+    text-align: center;
+    padding: 32px 16px;
+    margin: 0;
+}
+
+/* ─────────────────────────────────────────
+   Banners
+   ───────────────────────────────────────── */
+
+/* Amber reachability banner */
+.reachability-banner {
+    background: #FEF3C7;
+    border: 1px solid #F59E0B;
+    color: #92400E;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 13px;
+    margin-bottom: 0;
+}
+
+/* Red API error banner */
+.error-banner {
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    color: #B91C1C;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 13px;
+}
+
+/* ─────────────────────────────────────────
+   Mobile — ≤ 767px
+   ───────────────────────────────────────── */
+
+@media (max-width: 767px) {
+    body {
+        height: auto;
+        min-height: 100vh;
+    }
+
+    header {
+        height: auto;
+        padding: 12px;
+        flex-wrap: wrap;
+    }
+
+    #trip-form {
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+    }
+
+    #trip-form input[type="text"],
+    #trip-form input[type="number"] {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    #find-routes-btn {
+        width: 100%;
+        min-height: 44px;
+    }
+
+    #settings-btn {
+        padding: 12px;  /* ~44px tap target */
+    }
+
+    #add-waypoint-btn {
+        min-height: 44px;
+    }
+
+    #remove-waypoint-0 {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    main {
+        flex-direction: column;
+    }
+
+    #cards-panel {
+        width: 100%;
+        padding: 20px;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .route-card {
+        padding: 20px;
+    }
+
+    #map {
+        height: 300px;
+        flex: none;
+    }
+
+    /* Settings drawer slides up from bottom on mobile */
+    .settings-drawer {
+        width: 100%;
+        height: auto;
+        max-height: 70vh;
+        top: auto;
+        bottom: 0;
+        right: 0;
+        transform: translateY(100%);
+        border-radius: 16px 16px 0 0;
+        overflow-y: auto;
+    }
+
+    .settings-drawer.open {
+        transform: translateY(0);
+    }
+}

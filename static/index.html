@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>gaz_eye</title>
+
+    <!-- Inter font from Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- gaz_eye design tokens & custom styles -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+    <!-- ─────────────────────────────────────────
+         Header — Trip form
+         ───────────────────────────────────────── -->
+    <header>
+        <form id="trip-form">
+            <input type="text" id="origin" placeholder="Origin" autocomplete="off">
+            <input type="text" id="destination" placeholder="Destination" autocomplete="off">
+            <input type="number" id="range-km" placeholder="Range (km)" min="1" max="2000">
+            <button type="button" id="add-waypoint-btn">+ Add waypoint</button>
+            <div id="waypoint-container" hidden>
+                <input type="text" id="waypoint-0" placeholder="Waypoint" autocomplete="off">
+                <button type="button" id="remove-waypoint-0">×</button>
+            </div>
+            <button type="submit" id="find-routes-btn">Find routes</button>
+        </form>
+        <button type="button" id="settings-btn" aria-label="Settings">⚙</button>
+    </header>
+
+    <!-- ─────────────────────────────────────────
+         Main — Split-pane: cards + map
+         ───────────────────────────────────────── -->
+    <main>
+        <!-- Cards panel -->
+        <div id="cards-panel">
+            <!-- Error banner (API failures) -->
+            <div id="error-banner" hidden class="error-banner"></div>
+
+            <!-- Reachability amber banner (stations filtered by autonomy) -->
+            <div id="reachability-banner" hidden class="reachability-banner"></div>
+
+            <!-- Route cards container -->
+            <p id="empty-state">Enter a trip above to see route options.</p>
+            <div id="route-cards"></div>
+        </div>
+
+        <!-- Map container — Google Maps renders here -->
+        <div id="map">
+            <!-- Settings overlay covers only the map area -->
+            <div id="settings-overlay" class="map-overlay hidden"></div>
+
+            <!-- Loading overlay during API call -->
+            <div id="map-spinner-overlay" hidden>
+                <div class="map-spinner"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ─────────────────────────────────────────
+         Footer — Data timestamp
+         ───────────────────────────────────────── -->
+    <footer>
+        <span id="data-timestamp"></span>
+    </footer>
+
+    <!-- ─────────────────────────────────────────
+         Settings drawer (slides in from right / up from bottom on mobile)
+         ───────────────────────────────────────── -->
+    <div id="settings-drawer" class="settings-drawer" role="dialog" aria-label="Settings">
+        <div class="drawer-header">
+            <h2>Settings</h2>
+            <button type="button" id="close-settings-btn" aria-label="Close settings">×</button>
+        </div>
+
+        <div class="drawer-section">
+            <label>Fuel type</label>
+            <div class="btn-group" role="group" aria-label="Fuel type">
+                <button type="button" id="fuel-regular" data-value="Régulier" class="active">Regular</button>
+                <button type="button" id="fuel-premium" data-value="Super">Premium</button>
+                <button type="button" id="fuel-diesel" data-value="Diesel">Diesel</button>
+            </div>
+        </div>
+
+        <div class="drawer-section">
+            <label for="tank-litres">Tank size (L)</label>
+            <input type="number" id="tank-litres" min="1" max="200">
+        </div>
+
+        <div class="drawer-section">
+            <label for="corridor-km">Corridor radius: <span id="corridor-km-label">2 km</span></label>
+            <input type="range" id="corridor-km" min="1" max="10" step="0.5">
+        </div>
+
+        <div class="drawer-section">
+            <label for="safety-buffer-km">Safety buffer: <span id="safety-buffer-km-label">15 km</span></label>
+            <input type="range" id="safety-buffer-km" min="5" max="50" step="5">
+        </div>
+
+        <div class="drawer-section">
+            <label>Max alternatives</label>
+            <div class="btn-group" role="group" aria-label="Max alternatives">
+                <button type="button" id="max-2" data-value="2">2</button>
+                <button type="button" id="max-3" data-value="3" class="active">3</button>
+            </div>
+        </div>
+
+        <button type="button" id="reset-settings-btn">Reset to defaults</button>
+    </div>
+
+    <!-- ─────────────────────────────────────────
+         Scripts
+         app.js must load before the Maps CDN so window.initMap is set when Maps calls back
+         ───────────────────────────────────────── -->
+    <script type="module" src="/static/js/app.js"></script>
+    <script async defer
+        src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=geometry&callback=initMap&loading=async">
+    </script>
+
+</body>
+</html>

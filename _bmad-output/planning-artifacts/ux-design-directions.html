@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>gaz_eye — UX Design Directions</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .route-a { border-left-color: #2563EB; }
+    .route-b { border-left-color: #9333EA; }
+    .route-c { border-left-color: #EA580C; }
+    .route-a-dot { background: #2563EB; }
+    .route-b-dot { background: #9333EA; }
+    .route-c-dot { background: #EA580C; }
+    .card-selected-a { border-color: #2563EB; box-shadow: 0 0 0 1px #2563EB; }
+    .card-selected-b { border-color: #9333EB; box-shadow: 0 0 0 1px #9333EB; }
+    .card-best { background: #F0FDF4; border-color: #16A34A; box-shadow: 0 0 0 1px #16A34A; }
+    .map-placeholder {
+      background: #e8eaed;
+      position: relative;
+      overflow: hidden;
+    }
+    .map-placeholder::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: 
+        repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(255,255,255,0.3) 40px, rgba(255,255,255,0.3) 41px),
+        repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(255,255,255,0.3) 40px, rgba(255,255,255,0.3) 41px);
+    }
+    .map-road-a {
+      position: absolute;
+      width: 4px;
+      background: #2563EB;
+      opacity: 0.8;
+      border-radius: 2px;
+      top: 15%;
+      left: 30%;
+      height: 70%;
+      transform: rotate(-15deg) translateX(-20px);
+    }
+    .map-road-b {
+      position: absolute;
+      width: 3px;
+      background: #9333EA;
+      opacity: 0.6;
+      border-radius: 2px;
+      top: 10%;
+      left: 40%;
+      height: 75%;
+      transform: rotate(-8deg);
+    }
+    .map-road-c {
+      position: absolute;
+      width: 3px;
+      background: #EA580C;
+      opacity: 0.5;
+      border-radius: 2px;
+      top: 20%;
+      left: 55%;
+      height: 65%;
+      transform: rotate(5deg);
+    }
+    .map-pin {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid white;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #9CA3AF;
+      padding: 24px 20px 8px;
+      background: #F3F4F6;
+    }
+    .mockup-frame {
+      border: 1px solid #E5E7EB;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    .nav-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      display: inline-block; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .drawer-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.2);
+      display: none;
+      z-index: 40;
+    }
+    .drawer-overlay.open { display: block; }
+    .settings-drawer {
+      position: fixed; top: 0; right: 0; bottom: 0;
+      width: 320px; background: white;
+      box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+      transform: translateX(100%);
+      transition: transform 0.2s ease;
+      z-index: 50;
+      overflow-y: auto;
+    }
+    .settings-drawer.open { transform: translateX(0); }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-900">
+
+  <!-- Page header -->
+  <div class="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div>
+        <h1 class="text-lg font-semibold text-gray-900">gaz_eye — UX Design Directions</h1>
+        <p class="text-sm text-gray-500 mt-0.5">3 mockup states · Click cards and routes to interact</p>
+      </div>
+      <div class="flex gap-3 text-xs text-gray-500">
+        <a href="#state-1" class="px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors">State 1: Results</a>
+        <a href="#state-2" class="px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors">State 2: Selected</a>
+        <a href="#state-3" class="px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors">State 3: Low Range</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="max-w-7xl mx-auto px-6 py-10 space-y-16">
+
+    <!-- ─── STATE 1: Results loaded ─── -->
+    <section id="state-1">
+      <div class="mb-4">
+        <div class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">State 1</div>
+        <h2 class="text-xl font-semibold text-gray-900">Results loaded — three routes, pick one</h2>
+        <p class="text-sm text-gray-500 mt-1">The default state after "Find routes" completes. Best-value card is highlighted in green. No route is selected yet.</p>
+      </div>
+
+      <div class="mockup-frame" style="height: 640px; display: flex; flex-direction: column;">
+
+        <!-- Header / Form bar -->
+        <div class="bg-white border-b border-gray-200 px-5 py-3 flex items-center gap-3 flex-shrink-0">
+          <div class="flex items-center gap-2 flex-1 min-w-0">
+            <!-- Origin -->
+            <div class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 flex-1 min-w-0">
+              <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/></svg>
+              <span class="text-sm text-gray-700 truncate">Montréal, QC</span>
+            </div>
+            <svg class="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            <!-- Destination -->
+            <div class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 flex-1 min-w-0">
+              <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+              <span class="text-sm text-gray-700 truncate">Duhamel, QC</span>
+            </div>
+            <!-- Range -->
+            <div class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 w-28 flex-shrink-0">
+              <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h12"/></svg>
+              <span class="text-sm text-gray-700">380 km</span>
+            </div>
+          </div>
+          <!-- Settings gear -->
+          <button onclick="openDrawer()" class="p-2 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0" title="Settings">
+            <svg class="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/>
+              <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Main content: cards + map -->
+        <div class="flex flex-1 overflow-hidden">
+
+          <!-- Cards panel -->
+          <div class="w-96 flex-shrink-0 bg-gray-50 border-r border-gray-200 overflow-y-auto p-3 space-y-2.5">
+
+            <!-- Best value card (Route B) -->
+            <div class="card-best rounded-xl border-2 p-4 cursor-pointer transition-all" onclick="selectCard(this, 'b')">
+              <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <span class="route-b-dot w-2.5 h-2.5 rounded-full inline-block flex-shrink-0"></span>
+                  <span class="text-sm font-medium text-gray-700">Via Hwy 50</span>
+                </div>
+                <span class="text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">Best value</span>
+              </div>
+              <div class="flex items-end justify-between">
+                <div>
+                  <div class="text-2xl font-bold text-gray-900">2 h 18 min</div>
+                  <div class="text-xs text-gray-500 mt-0.5">Esso · L'Annonciation</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-lg font-semibold text-gray-800">149.9 <span class="text-sm font-normal">¢/L</span></div>
+                  <div class="text-base font-bold text-green-600 mt-0.5">Save 9.1 ¢/L</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Route A card -->
+            <div class="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:border-blue-200 hover:shadow-sm transition-all" onclick="selectCard(this, 'a')">
+              <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <span class="route-a-dot w-2.5 h-2.5 rounded-full inline-block flex-shrink-0"></span>
+                  <span class="text-sm font-medium text-gray-700">Via Hwy 15 N</span>
+                </div>
+              </div>
+              <div class="flex items-end justify-between">
+                <div>
+                  <div class="text-2xl font-bold text-gray-900">2 h 05 min</div>
+                  <div class="text-xs text-gray-500 mt-0.5">Ultramar · Saint-Jovite</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-lg font-semibold text-gray-800">154.9 <span class="text-sm font-normal">¢/L</span></div>
+                  <div class="text-sm font-semibold text-gray-500 mt-0.5">Save 4.3 ¢/L</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Route C card -->
+            <div class="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:border-orange-200 hover:shadow-sm transition-all" onclick="selectCard(this, 'c')">
+              <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <span class="route-c-dot w-2.5 h-2.5 rounded-full inline-block flex-shrink-0"></span>
+                  <span class="text-sm font-medium text-gray-700">Via Hawkesbury, ON</span>
+                </div>
+                <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">No ON pricing</span>
+              </div>
+              <div class="flex items-end justify-between">
+                <div>
+                  <div class="text-2xl font-bold text-gray-900">2 h 31 min</div>
+                  <div class="text-xs text-gray-500 mt-0.5">Petro-Canada · Grenville</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-lg font-semibold text-gray-800">157.4 <span class="text-sm font-normal">¢/L</span></div>
+                  <div class="text-sm font-semibold text-gray-500 mt-0.5">Save 1.8 ¢/L</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Map area -->
+          <div class="flex-1 map-placeholder relative">
+            <div class="map-road-a"></div>
+            <div class="map-road-b"></div>
+            <div class="map-road-c"></div>
+            <!-- pins -->
+            <div class="map-pin route-b-dot" style="top:48%; left:38%;"></div>
+            <div class="map-pin route-a-dot" style="top:38%; left:52%;"></div>
+            <div class="map-pin route-c-dot" style="top:55%; left:62%;"></div>
+            <!-- origin/dest labels -->
+            <div class="absolute top-4 left-1/2 -translate-x-1/2 bg-white rounded-full px-3 py-1 text-xs font-medium text-gray-700 shadow-sm border border-gray-200">Montréal</div>
+            <div class="absolute bottom-8 left-1/2 -translate-x-1/2 bg-white rounded-full px-3 py-1 text-xs font-medium text-gray-700 shadow-sm border border-gray-200">Duhamel</div>
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <span class="text-gray-400 text-xs font-medium bg-white/80 px-3 py-1.5 rounded-full border border-gray-200">Google Maps renders here</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Footer: timestamp -->
+        <div class="bg-white border-t border-gray-100 px-5 py-2 flex items-center justify-between flex-shrink-0">
+          <span class="text-xs text-gray-400">Régie Essence · Updated today at 06:42</span>
+          <span class="text-xs text-gray-400">Regular (E10) · 2 km corridor</span>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ─── STATE 2: Route selected ─── -->
+    <section id="state-2">
+      <div class="mb-4">
+        <div class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">State 2</div>
+        <h2 class="text-xl font-semibold text-gray-900">Route selected — map + card in sync</h2>
+        <p class="text-sm text-gray-500 mt-1">User clicked Route A (blue). The blue card is focused, the other two dim. The map would highlight the blue polyline and its station pin.</p>
+      </div>
+
+      <div class="mockup-frame" style="height: 640px; display: flex; flex-direction: column;">
+
+        <!-- Header -->
+        <div class="bg-white border-b border-gray-200 px-5 py-3 flex items-center gap-3 flex-shrink-0">
+          <div class="flex items-center gap-2 flex-1 min-w-0">
+            <div class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 flex-1 min-w-0">
+              <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/></svg>
+              <span class="text-sm text-gray-700 truncate">Montréal, QC</span>
+            </div>
+            <svg class="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            <div class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 flex-1 min-w-0">
+              <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+              <span class="text-sm text-gray-700 truncate">Duhamel, QC</span>
+            </div>
+            <div class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 w-28 flex-shrink-0">
+              <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h12"/></svg>
+              <span class="text-sm text-gray-700">380 km</span>
+            </div>
+          </div>
+          <button onclick="openDrawer()" class="p-2 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0">
+            <svg class="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          </button>
+        </div>
+
+        <div class="flex flex-1 overflow-hidden">
+
+          <!-- Cards panel: Route A selected -->
+          <div class="w-96 flex-shrink-0 bg-gray-50 border-r border-gray-200 overflow-y-auto p-3 space-y-2.5">
+
+            <!-- Route A — SELECTED -->
+            <div class="bg-white rounded-xl border-2 border-blue-500 p-4 cursor-pointer shadow-sm" style="box-shadow: 0 0 0 1px #2563EB;">
+              <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <span class="route-a-dot w-2.5 h-2.5 rounded-full inline-block flex-shrink-0"></span>
+                  <span class="text-sm font-medium text-gray-700">Via Hwy 15 N</span>
+                </div>
+                <span class="text-xs text-blue-600 font-medium">Selected</span>
+              </div>
+              <div class="flex items-end justify-between mb-3">
+                <div>
+                  <div class="text-2xl font-bold text-gray-900">2 h 05 min</div>
+                  <div class="text-xs text-gray-500 mt-0.5">Ultramar · Saint-Jovite</div>
+                  <div class="text-xs text-gray-400 mt-0.5">1.4 km off route</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-lg font-semibold text-gray-800">154.9 <span class="text-sm font-normal">¢/L</span></div>
+                  <div class="text-sm font-semibold text-gray-500 mt-0.5">Save 4.3 ¢/L</div>
+                </div>
+              </div>
+              <!-- Expandable: other reachable stations -->
+              <div class="border-t border-gray-100 pt-3">
+                <button class="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
+                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M19 9l-7 7-7-7"/></svg>
+                  3 other reachable stations
+                </button>
+              </div>
+            </div>
+
+            <!-- Best value card (Route B) — dimmed -->
+            <div class="rounded-xl border border-gray-200 p-4 cursor-pointer opacity-50 hover:opacity-80 transition-opacity" style="background: #F9FDF9;">
+              <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <span class="route-b-dot w-2.5 h-2.5 rounded-full inline-block flex-shrink-0"></span>
+                  <span class="text-sm font-medium text-gray-700">Via Hwy 50</span>
+                </div>
+                <span class="text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">Best value</span>
+              </div>
+              <div class="flex items-end justify-between">
+                <div>
+                  <div class="text-2xl font-bold text-gray-900">2 h 18 min</div>
+                  <div class="text-xs text-gray-500 mt-0.5">Esso · L'Annonciation</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-lg font-semibold text-gray-800">149.9 <span class="text-sm font-normal">¢/L</span></div>
+                  <div class="text-base font-bold text-green-600 mt-0.5">Save 9.1 ¢/L</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Route C — dimmed -->
+            <div class="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer opacity-50 hover:opacity-80 transition-opacity">
+              <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <span class="route-c-dot w-2.5 h-2.5 rounded-full inline-block flex-shrink-0"></span>
+                  <span class="text-sm font-medium text-gray-700">Via Hawkesbury, ON</span>
+                </div>
+                <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">No ON pricing</span>
+              </div>
+              <div class="flex items-end justify-between">
+                <div>
+                  <div class="text-2xl font-bold text-gray-900">2 h 31 min</div>
+                  <div class="text-xs text-gray-500 mt-0.5">Petro-Canada · Grenville</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-lg font-semibold text-gray-800">157.4 <span class="text-sm font-normal">¢/L</span></div>
+                  <div class="text-sm font-semibold text-gray-500 mt-0.5">Save 1.8 ¢/L</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Map area -->
+          <div class="flex-1 map-placeholder relative">
+            <div class="map-road-a" style="opacity:1; width:5px;"></div>
+            <div class="map-road-b" style="opacity:0.2;"></div>
+            <div class="map-road-c" style="opacity:0.2;"></div>
+            <div class="map-pin route-a-dot" style="top:38%; left:52%; width:14px; height:14px;"></div>
+            <div class="map-pin route-b-dot" style="top:48%; left:38%; opacity:0.3;"></div>
+            <div class="map-pin route-c-dot" style="top:55%; left:62%; opacity:0.3;"></div>
+            <div class="absolute top-4 left-1/2 -translate-x-1/2 bg-white rounded-full px-3 py-1 text-xs font-medium text-gray-700 shadow-sm border border-gray-200">Montréal</div>
+            <div class="absolute bottom-8 left-1/2 -translate-x-1/2 bg-white rounded-full px-3 py-1 text-xs font-medium text-gray-700 shadow-sm border border-gray-200">Duhamel</div>
+            <!-- station tooltip on map -->
+            <div class="absolute bg-white rounded-lg shadow-lg border border-gray-200 p-2.5 text-xs" style="top:32%; left:54%;">
+              <div class="font-semibold text-gray-800">Ultramar</div>
+              <div class="text-gray-500">Saint-Jovite · 154.9 ¢/L</div>
+            </div>
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <span class="text-gray-400 text-xs font-medium bg-white/80 px-3 py-1.5 rounded-full border border-gray-200">Google Maps renders here</span>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="bg-white border-t border-gray-100 px-5 py-2 flex items-center justify-between flex-shrink-0">
+          <span class="text-xs text-gray-400">Régie Essence · Updated today at 06:42</span>
+          <span class="text-xs text-gray-400">Regular (E10) · 2 km corridor</span>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ─── STATE 3: Low range / urgency ─── -->
+    <section id="state-3">
+      <div class="mb-4">
+        <div class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">State 3</div>
+        <h2 class="text-xl font-semibold text-gray-900">Low-range urgency — scarcity is honest, not alarming</h2>
+        <p class="text-sm text-gray-500 mt-1">Range: 45 km. Most stations filtered out. Cards show how many options are reachable. Warning indicator, not an error state.</p>
+      </div>
+
+      <div class="mockup-frame" style="height: 640px; display: flex; flex-direction: column;">
+
+        <!-- Header -->
+        <div class="bg-white border-b border-gray-200 px-5 py-3 flex items-center gap-3 flex-shrink-0">
+          <div class="flex items-center gap-2 flex-1 min-w-0">
+            <div class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 flex-1 min-w-0">
+              <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/></svg>
+              <span class="text-sm text-gray-700 truncate">Montréal, QC</span>
+            </div>
+            <svg class="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            <div class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 flex-1 min-w-0">
+              <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+              <span class="text-sm text-gray-700 truncate">Duhamel, QC</span>
+            </div>
+            <!-- Range — highlighted as constrained -->
+            <div class="flex items-center gap-2 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 w-28 flex-shrink-0">
+              <svg class="w-3.5 h-3.5 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+              <span class="text-sm font-semibold text-amber-700">45 km</span>
+            </div>
+          </div>
+          <button onclick="openDrawer()" class="p-2 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0">
+            <svg class="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          </button>
+        </div>
+
+        <div class="flex flex-1 overflow-hidden">
+
+          <!-- Cards panel: low range -->
+          <div class="w-96 flex-shrink-0 bg-gray-50 border-r border-gray-200 overflow-y-auto p-3 space-y-2.5">
+
+            <!-- Range banner -->
+            <div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
+              <svg class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+              <div>
+                <div class="text-sm font-semibold text-amber-800">Low range — 45 km</div>
+                <div class="text-xs text-amber-600 mt-0.5">Showing only stations within reach. Safety buffer: 10 km.</div>
+              </div>
+            </div>
+
+            <!-- Route A: 1 station reachable -->
+            <div class="card-best rounded-xl border-2 p-4 cursor-pointer">
+              <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <span class="route-a-dot w-2.5 h-2.5 rounded-full inline-block flex-shrink-0"></span>
+                  <span class="text-sm font-medium text-gray-700">Via Hwy 15 N</span>
+                </div>
+                <span class="text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">Best value</span>
+              </div>
+              <div class="flex items-end justify-between mb-2">
+                <div>
+                  <div class="text-2xl font-bold text-gray-900">2 h 05 min</div>
+                  <div class="text-xs text-gray-500 mt-0.5">Ultramar · Mirabel</div>
+                  <div class="text-xs text-gray-400 mt-0.5">31 km from origin</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-lg font-semibold text-gray-800">152.9 <span class="text-sm font-normal">¢/L</span></div>
+                  <div class="text-sm font-bold text-green-600 mt-0.5">Save 3.5 ¢/L</div>
+                </div>
+              </div>
+              <div class="text-xs text-gray-400 border-t border-gray-100 pt-2">1 station reachable</div>
+            </div>
+
+            <!-- Route B: 2 stations reachable -->
+            <div class="bg-white rounded-xl border border-gray-200 p-4 cursor-pointer hover:border-purple-200 transition-all">
+              <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <span class="route-b-dot w-2.5 h-2.5 rounded-full inline-block flex-shrink-0"></span>
+                  <span class="text-sm font-medium text-gray-700">Via Hwy 50</span>
+                </div>
+              </div>
+              <div class="flex items-end justify-between mb-2">
+                <div>
+                  <div class="text-2xl font-bold text-gray-900">2 h 18 min</div>
+                  <div class="text-xs text-gray-500 mt-0.5">Esso · Lachute</div>
+                  <div class="text-xs text-gray-400 mt-0.5">38 km from origin</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-lg font-semibold text-gray-800">156.4 <span class="text-sm font-normal">¢/L</span></div>
+                  <div class="text-sm font-semibold text-gray-500 mt-0.5">Save 0.1 ¢/L</div>
+                </div>
+              </div>
+              <div class="text-xs text-gray-400 border-t border-gray-100 pt-2">2 stations reachable</div>
+            </div>
+
+            <!-- Route C: no stations -->
+            <div class="bg-white rounded-xl border border-gray-200 p-4 opacity-60">
+              <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <span class="route-c-dot w-2.5 h-2.5 rounded-full inline-block flex-shrink-0"></span>
+                  <span class="text-sm font-medium text-gray-700">Via Hawkesbury, ON</span>
+                </div>
+              </div>
+              <div class="text-sm text-gray-500 mb-1">No stations reachable within 45 km.</div>
+              <div class="text-xs text-gray-400">Nearest QC station is 58 km away — 13 km beyond your current range.</div>
+            </div>
+
+          </div>
+
+          <!-- Map -->
+          <div class="flex-1 map-placeholder relative">
+            <div class="map-road-a" style="opacity:1;"></div>
+            <div class="map-road-b" style="opacity:0.5;"></div>
+            <div class="map-road-c" style="opacity:0.15;"></div>
+            <div class="map-pin route-a-dot" style="top:28%; left:45%;"></div>
+            <div class="map-pin route-b-dot" style="top:32%; left:37%; opacity:0.6;"></div>
+            <!-- range radius hint -->
+            <div class="absolute rounded-full border-2 border-amber-400 border-dashed opacity-30" style="width:120px; height:120px; top:calc(15% - 60px); left:calc(50% - 60px);"></div>
+            <div class="absolute top-4 left-1/2 -translate-x-1/2 bg-white rounded-full px-3 py-1 text-xs font-medium text-gray-700 shadow-sm border border-gray-200">Montréal</div>
+            <div class="absolute bottom-8 left-1/2 -translate-x-1/2 bg-white rounded-full px-3 py-1 text-xs font-medium text-gray-300 shadow-sm border border-gray-100">Duhamel</div>
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <span class="text-gray-400 text-xs font-medium bg-white/80 px-3 py-1.5 rounded-full border border-gray-200">Google Maps renders here</span>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="bg-white border-t border-gray-100 px-5 py-2 flex items-center justify-between flex-shrink-0">
+          <span class="text-xs text-gray-400">Régie Essence · Updated today at 06:42</span>
+          <span class="text-xs text-amber-500 font-medium">45 km range · 10 km safety buffer active</span>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ─── STATE 4: Form — initial + settings drawer ─── -->
+    <section id="state-4">
+      <div class="mb-4">
+        <div class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">State 4</div>
+        <h2 class="text-xl font-semibold text-gray-900">Settings drawer — accessible without leaving main view</h2>
+        <p class="text-sm text-gray-500 mt-1">Click the gear icon in any state to open this drawer. Slides in from the right. Settings persist to localStorage.</p>
+      </div>
+
+      <div class="mockup-frame relative" style="height:640px; display:flex; flex-direction:column; overflow:hidden;">
+
+        <!-- Header -->
+        <div class="bg-white border-b border-gray-200 px-5 py-3 flex items-center gap-3 flex-shrink-0 z-10 relative">
+          <div class="flex items-center gap-2 flex-1 min-w-0">
+            <div class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 flex-1 min-w-0">
+              <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/></svg>
+              <span class="text-sm text-gray-700 truncate">Montréal, QC</span>
+            </div>
+            <svg class="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            <div class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 flex-1 min-w-0">
+              <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+              <span class="text-sm text-gray-700 truncate">Duhamel, QC</span>
+            </div>
+            <div class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 w-28 flex-shrink-0">
+              <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h12"/></svg>
+              <span class="text-sm text-gray-700">380 km</span>
+            </div>
+          </div>
+          <button class="p-2 rounded-lg bg-gray-100 transition-colors flex-shrink-0">
+            <svg class="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          </button>
+        </div>
+
+        <!-- dim overlay inside frame -->
+        <div class="flex flex-1 relative" style="overflow:hidden;">
+          <div class="absolute inset-0 bg-black/20 z-20 rounded-b-xl"></div>
+
+          <!-- Cards panel (behind overlay) -->
+          <div class="w-96 flex-shrink-0 bg-gray-50 border-r border-gray-200 overflow-y-auto p-3 space-y-2.5">
+            <div class="card-best rounded-xl border-2 p-4">
+              <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <span class="route-b-dot w-2.5 h-2.5 rounded-full inline-block"></span>
+                  <span class="text-sm font-medium text-gray-700">Via Hwy 50</span>
+                </div>
+                <span class="text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">Best value</span>
+              </div>
+              <div class="flex items-end justify-between">
+                <div>
+                  <div class="text-2xl font-bold text-gray-900">2 h 18 min</div>
+                  <div class="text-xs text-gray-500 mt-0.5">Esso · L'Annonciation</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-lg font-semibold text-gray-800">149.9 <span class="text-sm font-normal">¢/L</span></div>
+                  <div class="text-base font-bold text-green-600 mt-0.5">Save 9.1 ¢/L</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex-1 map-placeholder">
+            <div class="map-road-a"></div>
+            <div class="map-road-b"></div>
+            <div class="map-road-c"></div>
+          </div>
+
+          <!-- Settings drawer (always open in this state mockup) -->
+          <div class="absolute top-0 right-0 bottom-0 w-72 bg-white shadow-2xl z-30 overflow-y-auto border-l border-gray-200">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <span class="text-sm font-semibold text-gray-900">Settings</span>
+              <button class="p-1 rounded hover:bg-gray-100">
+                <svg class="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div class="px-5 py-4 space-y-5">
+              <!-- Fuel type -->
+              <div>
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-2">Fuel Type</label>
+                <div class="flex gap-2">
+                  <button class="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-900 text-white">Regular (E10)</button>
+                  <button class="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200">Premium</button>
+                  <button class="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200">Diesel</button>
+                </div>
+              </div>
+              <!-- Corridor radius -->
+              <div>
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-2">Corridor Radius</label>
+                <div class="flex items-center gap-3">
+                  <input type="range" min="1" max="10" value="2" class="flex-1 accent-gray-900" />
+                  <span class="text-sm font-medium text-gray-700 w-12 text-right">2 km</span>
+                </div>
+                <div class="text-xs text-gray-400 mt-1">Search stations within this distance of each route</div>
+              </div>
+              <!-- Safety buffer -->
+              <div>
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-2">Safety Buffer</label>
+                <div class="flex items-center gap-3">
+                  <input type="range" min="5" max="50" value="15" class="flex-1 accent-gray-900" />
+                  <span class="text-sm font-medium text-gray-700 w-12 text-right">15 km</span>
+                </div>
+                <div class="text-xs text-gray-400 mt-1">Reserve km excluded from reachable range</div>
+              </div>
+              <!-- Max alternatives -->
+              <div>
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-2">Max Route Alternatives</label>
+                <div class="flex gap-2">
+                  <button class="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-700">2</button>
+                  <button class="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-900 text-white">3</button>
+                </div>
+              </div>
+              <!-- Reset -->
+              <div class="pt-2 border-t border-gray-100">
+                <button class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Reset to defaults</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white border-t border-gray-100 px-5 py-2 flex items-center justify-between flex-shrink-0">
+          <span class="text-xs text-gray-400">Régie Essence · Updated today at 06:42</span>
+          <span class="text-xs text-gray-400">Regular (E10) · 2 km corridor</span>
+        </div>
+
+      </div>
+    </section>
+
+    <div class="text-center py-6 text-xs text-gray-400">
+      gaz_eye · UX Design Directions · Step 09 · 2026-04-30
+    </div>
+
+  </div>
+
+  <script>
+    function selectCard(el, route) {
+      // Simple demo interaction — no real state management needed
+      const panel = el.closest('.space-y-2\\.5') || el.parentElement;
+    }
+    function openDrawer() {
+      // No-op in static mockup — drawer shown in State 4
+      alert('Settings drawer — see State 4 below for the full drawer mockup.');
+    }
+  </script>
+</body>
+</html>
