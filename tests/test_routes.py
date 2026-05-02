@@ -5,10 +5,11 @@ A live API key is never required.
 """
 
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, mock_open, patch
 
 import polyline as polyline_lib
 import pytest
+import yaml
 
 from app import create_app
 
@@ -293,3 +294,98 @@ class TestFormatDriveTime:
         """0 seconds = '0 min'."""
         from api.routes import _format_drive_time
         assert _format_drive_time(0) == "0 min"
+
+
+# ---------------------------------------------------------------------------
+# Anomaly filter integration tests (Story 4.2)
+# ---------------------------------------------------------------------------
+
+class TestPlanAnomalyFilter:
+    """Tests for the anomaly filter integration in POST /api/plan."""
+
+    @patch("api.routes.detect_stale_prices")
+    @patch("api.routes.requests.get")
+    @patch("api.routes.fetch_stations")
+    def test_filter_called_when_enabled(self, mock_fetch, mock_get, mock_detect, client):
+        """detect_stale_prices is called with all_stations and exemptions when filter is enabled."""
+        yaml_content = yaml.dump({"anomaly_filter_enabled": True, "anomaly_filter_exemptions": ["costco"]})
+        mock_fetch.return_value = (_make_stations(2), "2026-05-01T00:00:00Z")
+        mock_get.return_value = _make_mock_get(_make_gm_response(1))
+        mock_detect.side_effect = lambda stations, *a, **kw: stations
+
+        with patch("builtins.open", mock_open(read_data=yaml_content)):
+            resp = client.post("/api/plan", json=_VALID_BODY)
+
+        assert resp.status_code == 200
+        mock_detect.assert_called()
+        call_kwargs = mock_detect.call_args.kwargs
+        assert call_kwargs["exemptions"] == ["costco"]
+        # Verify all_stations (the full fetch result) is passed as second positional argument
+        expected_all_stations = mock_fetch.return_value[0]
+        assert mock_detect.call_args.args[1] is expected_all_stations
+
+    @patch("api.routes.detect_stale_prices")
+    @patch("api.routes.requests.get")
+    @patch("api.routes.fetch_stations")
+    def test_filter_not_called_when_disabled(self, mock_fetch, mock_get, mock_detect, client):
+        """detect_stale_prices is NOT called when anomaly_filter_enabled=False."""
+        yaml_content = yaml.dump({"anomaly_filter_enabled": False})
+        mock_fetch.return_value = (_make_stations(2), "2026-05-01T00:00:00Z")
+        mock_get.return_value = _make_mock_get(_make_gm_response(1))
+
+        with patch("builtins.open", mock_open(read_data=yaml_content)):
+            resp = client.post("/api/plan", json=_VALID_BODY)
+
+        assert resp.status_code == 200
+        mock_detect.assert_not_called()
+
+    @patch("api.routes.detect_stale_prices")
+    @patch("api.routes.requests.get")
+    @patch("api.routes.fetch_stations")
+    def test_exemptions_forwarded(self, mock_fetch, mock_get, mock_detect, client):
+        """Exemption list is forwarded exactly to detect_stale_prices."""
+        yaml_content = yaml.dump({"anomaly_filter_enabled": True, "anomaly_filter_exemptions": ["olco", "pioneer"]})
+        mock_fetch.return_value = (_make_stations(2), "2026-05-01T00:00:00Z")
+        mock_get.return_value = _make_mock_get(_make_gm_response(1))
+        mock_detect.side_effect = lambda stations, *a, **kw: stations
+
+        with patch("builtins.open", mock_open(read_data=yaml_content)):
+            resp = client.post("/api/plan", json=_VALID_BODY)
+
+        assert resp.status_code == 200
+        call_kwargs = mock_detect.call_args.kwargs
+        assert call_kwargs["exemptions"] == ["olco", "pioneer"]
+
+    @patch("api.routes.detect_stale_prices")
+    @patch("api.routes.requests.get")
+    @patch("api.routes.fetch_stations")
+    def test_missing_exemptions_defaults_to_empty_list(self, mock_fetch, mock_get, mock_detect, client):
+        """Missing anomaly_filter_exemptions in YAML defaults to empty list."""
+        yaml_content = yaml.dump({"anomaly_filter_enabled": True})
+        mock_fetch.return_value = (_make_stations(2), "2026-05-01T00:00:00Z")
+        mock_get.return_value = _make_mock_get(_make_gm_response(1))
+        mock_detect.side_effect = lambda stations, *a, **kw: stations
+
+        with patch("builtins.open", mock_open(read_data=yaml_content)):
+            resp = client.post("/api/plan", json=_VALID_BODY)
+
+        assert resp.status_code == 200
+        call_kwargs = mock_detect.call_args.kwargs
+        assert call_kwargs["exemptions"] == []
+
+    @patch("api.routes.detect_stale_prices")
+    @patch("api.routes.requests.get")
+    @patch("api.routes.fetch_stations")
+    def test_yaml_oserror_defaults_to_enabled(self, mock_fetch, mock_get, mock_detect, client):
+        """OSError reading config file defaults to filter enabled with empty exemptions."""
+        mock_fetch.return_value = (_make_stations(2), "2026-05-01T00:00:00Z")
+        mock_get.return_value = _make_mock_get(_make_gm_response(1))
+        mock_detect.side_effect = lambda stations, *a, **kw: stations
+
+        with patch("builtins.open", side_effect=OSError("disk error")):
+            resp = client.post("/api/plan", json=_VALID_BODY)
+
+        assert resp.status_code == 200
+        # Filter should be active (default True) with empty exemptions
+        mock_detect.assert_called()
+        assert mock_detect.call_args.kwargs["exemptions"] == []

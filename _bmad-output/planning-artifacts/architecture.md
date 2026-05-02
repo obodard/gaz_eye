@@ -8,9 +8,14 @@ stepsCompleted:
   - step-06-structure
   - step-07-validation
   - step-08-complete
+  - update-anomaly-filter-2026-05-01
 lastStep: 8
 status: 'complete'
 completedAt: '2026-04-30'
+lastUpdated: '2026-05-01'
+updateHistory:
+  - date: '2026-05-01'
+    changes: 'Added anomaly detection (FR38-FR42): detect_stale_prices() in api/pricing.py, updated data flow, directory structure, requirements mapping, gap analysis (gaps 4-6: filter order, stations.yaml schema, ANOMALY_THRESHOLD_CAD constant), validation FR count 35→42'
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/product-brief-gaz_eye.md
@@ -34,10 +39,11 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 ### Requirements Overview
 
-**Functional Requirements:** 35 FRs across six domains:
+**Functional Requirements:** 42 FRs across seven domains:
 - Trip Input (FR1–FR6): origin, destination, range, optional waypoints
 - Route Discovery (FR7–FR10): Google Maps Directions API integration, polyline decoding
 - Station Discovery (FR11–FR15): Régie Essence GeoJSON fetch, corridor matching (Haversine), fuel type filtering
+- Price Quality Filtering (FR38–FR42): spatial stale-price anomaly detection, density-adaptive neighbor radius, structural discounter exemption list, kill switch, structured exclusion logging
 - Autonomy Filtering (FR16–FR18): distance-to-station calculation, safety buffer enforcement
 - Recommendation Engine (FR19–FR23): cheapest/worst station per route, per-litre and per-tank savings, route ranking
 - Map & Display (FR24–FR30): interactive Google Maps JS rendering, bi-directional card/map sync, data freshness indicator
@@ -364,8 +370,9 @@ gaz_eye/
 ├── api/
 │   ├── __init__.py
 │   ├── routes.py                 # Blueprint; POST /api/plan
-│   ├── pricing.py                # fetch_stations, parse_price_value, filter_by_autonomy,
-│   │                             # build_recommendation — ported from gaz_saver.py
+│   ├── pricing.py                # fetch_stations, parse_price_value, detect_stale_prices,
+│   │                             # filter_by_autonomy, build_recommendation — ported from
+│   │                             # gaz_saver.py + anomaly detection (net-new)
 │   └── geo.py                    # decode_polyline, haversine, find_stations_in_corridor,
 │                                 # distance_along_route
 ├── static/
@@ -392,7 +399,7 @@ gaz_eye/
 
 **Module responsibilities (enforced):**
 - `api/routes.py` — HTTP layer only; calls `pricing.py` and `geo.py`
-- `api/pricing.py` — GeoJSON fetch, price parsing, autonomy filter, recommendation builder
+- `api/pricing.py` — GeoJSON fetch, price parsing, anomaly filter, autonomy filter, recommendation builder
 - `api/geo.py` — polyline decode, Haversine, corridor matching
 - `app.js` — owns loading state (`is-loading`) and error display (`#error-banner`)
 - `state.js` — owns all `localStorage` access and route selection state
@@ -401,7 +408,10 @@ gaz_eye/
 **Data flow:**
 ```
 form submit → POST /api/plan → [Google Maps API + Régie Essence GeoJSON]
-  → geo.py (decode + corridor) + pricing.py (filter + recommend)
+  → geo.py (decode + corridor)
+  → pricing.py detect_stale_prices()   ← anomaly filter (pre-recommendation)
+  → pricing.py filter_by_autonomy()    ← autonomy filter
+  → pricing.py build_recommendation()
   → JSON response → app.js renderCards() → state.setSelectedRoute(0)
   → CustomEvent("routeSelected") → map.js renderRoutes() + renderMarkers()
 ```
@@ -413,6 +423,7 @@ form submit → POST /api/plan → [Google Maps API + Régie Essence GeoJSON]
 | FR1–FR6 Trip Input | `static/index.html`, `static/js/app.js` |
 | FR7–FR10 Route Discovery + Polyline | `api/routes.py`, `api/geo.py` |
 | FR11–FR15 Station Discovery | `api/pricing.py`, `api/geo.py` |
+| FR38–FR42 Price Quality Filtering | `api/pricing.py` (`detect_stale_prices()`) |
 | FR16–FR18 Autonomy Filtering | `api/pricing.py` |
 | FR19–FR23 Recommendation Engine | `api/pricing.py` |
 | FR24–FR27 Map Visualization | `static/js/map.js` |
@@ -455,12 +466,17 @@ form submit → POST /api/plan → [Google Maps API + Régie Essence GeoJSON]
 
 ### Requirements Coverage Validation ✅
 
-**Functional Requirements (35 FRs) — all covered.**
+**Functional Requirements (42 FRs) — all covered.**
 
 Spot-checks on hardest FRs:
 
 | FR | Coverage |
 |---|---|
+| FR38 — detect stale stations below local median | `api/pricing.py` `detect_stale_prices()` |
+| FR39 — density-adaptive radius (expand until ≥5 neighbors) | `api/pricing.py` `detect_stale_prices()` |
+| FR40 — structural discounter exemption list | `stations.yaml` `anomaly_filter_exemptions`; checked in `detect_stale_prices()` |
+| FR41 — kill switch (disable without code deploy) | `stations.yaml` `anomaly_filter_enabled`; checked in `api/routes.py` before calling filter |
+| FR42 — structured log entry per excluded station | `gaz_eye.pricing` logger in `detect_stale_prices()` |
 | FR10 — decode route polylines | `api/geo.py` `decode_polyline()` |
 | FR12 — Haversine corridor matching | `api/geo.py` `find_stations_in_corridor()` |
 | FR16 — distance from origin to station | `api/geo.py` `distance_along_route()` |
@@ -493,6 +509,15 @@ Spot-checks on hardest FRs:
 2. **`distance_along_route()` semantics** — Distance from origin to station is the cumulative distance along the route polyline to the nearest polyline point, not straight-line distance. Implementation story must specify this clearly.
 
 3. **Google Maps JS API key in `index.html`** — The Maps JavaScript API key is a separate concern from the Directions API key. It must be injected into `index.html` at serve time by Flask (via template rendering), not hardcoded in the static file. Add `GOOGLE_MAPS_JS_KEY` as a second env var. Flask's root route should render `index.html` as a Jinja2 template.
+
+4. **Anomaly filter placement in `api/pricing.py`** — `detect_stale_prices(stations, all_stations, threshold, exemptions)` must be called in `routes.py` **after** corridor matching and **before** `filter_by_autonomy()`. This order is mandatory: the anomaly filter requires the full `all_stations` dataset (for neighbor lookup), so it must run while that dataset is still in scope.
+
+5. **`stations.yaml` config schema additions** — Two new top-level keys are required:
+   - `anomaly_filter_enabled: true` (boolean kill switch; default `true`)
+   - `anomaly_filter_exemptions: ["costco", "olco"]` (list of case-insensitive name substrings)
+   These must be loaded and passed through from `fetch_stations()` into the route handler, then forwarded to `detect_stale_prices()`. No UI exposure required.
+
+6. **`ANOMALY_THRESHOLD_CAD` constant** — Defined once in `api/pricing.py` as `ANOMALY_THRESHOLD_CAD = 0.05` (i.e., 5¢/L). Never hardcoded elsewhere. Configurable only by editing this constant — not a user-facing setting.
 
 **Nice-to-Have:**
 - `run.sh` should check if `.env` exists and warn if `GOOGLE_MAPS_API_KEY` is unset

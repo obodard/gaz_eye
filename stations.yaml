@@ -46,3 +46,6 @@ cities:
 settings:
   - tank_litres: 50
   - gaz_type: "Régulier" # "Régulier" | "Super" | "Diesel"
+
+anomaly_filter_enabled: true
+anomaly_filter_exemptions: ["costco", "olco"]

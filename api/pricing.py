@@ -12,10 +12,13 @@ import gzip
 import json
 import logging
 import math
+import statistics
 import sys
 from typing import Any, Optional
 
 import requests
+
+from api.geo import haversine
 
 logger = logging.getLogger("gaz_eye.pricing")
 if not logger.handlers:
@@ -35,6 +38,8 @@ _HEADERS = {
     "Accept": "application/json, application/geo+json, */*",
     "Accept-Encoding": "gzip, deflate, br",
 }
+
+ANOMALY_THRESHOLD_CAD = 0.05
 
 
 def parse_price_value(price_str: Optional[str]) -> float:
@@ -181,3 +186,79 @@ def rank_routes(routes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for i, route in enumerate(sorted_routes, start=1):
         route["rank"] = i
     return routes
+
+
+_RADII = [5.0, 10.0, 20.0, 50.0]
+
+
+def detect_stale_prices(
+    corridor_stations: list[dict[str, Any]],
+    all_stations: list[dict[str, Any]],
+    threshold: float = ANOMALY_THRESHOLD_CAD,
+    exemptions: list[str] = None,
+    data_timestamp: str = "",
+) -> list[dict[str, Any]]:
+    """Return corridor_stations with anomalously cheap stations' price set to float('inf').
+
+    Uses a density-adaptive spatial median (radii: 5, 10, 20, 50 km) to detect stale prices.
+    Stations with no price data, or fewer than 5 neighbors within 50 km, bypass the filter.
+    """
+    if exemptions is None:
+        exemptions = []
+
+    # Pre-filter all_stations to valid-price stations once (performance optimisation)
+    valid_pool = [
+        s for s in all_stations
+        if s.get("price_per_litre", float("inf")) != float("inf")
+    ]
+
+    result: list[dict[str, Any]] = []
+    for station in corridor_stations:
+        station_copy = dict(station)
+
+        # Bypass: no price data
+        if station["price_per_litre"] == float("inf"):
+            result.append(station_copy)
+            continue
+
+        # Bypass: exempted station (case-insensitive substring match)
+        station_name = station.get("name", "").lower()
+        if any(isinstance(exc, str) and exc.lower() in station_name for exc in exemptions):
+            result.append(station_copy)
+            continue
+
+        # Density-adaptive neighbor search
+        neighbors = None
+        radius_used = None
+        for radius in _RADII:
+            candidates = [
+                s for s in valid_pool
+                if not (s["lat"] == station["lat"] and s["lng"] == station["lng"])
+                and haversine(station["lat"], station["lng"], s["lat"], s["lng"]) <= radius
+            ]
+            if len(candidates) >= 5:
+                neighbors = candidates
+                radius_used = radius
+                break
+
+        # Bypass: insufficient neighbors within 50 km
+        if neighbors is None:
+            result.append(station_copy)
+            continue
+
+        local_median = statistics.median(s["price_per_litre"] for s in neighbors)
+
+        if local_median - station["price_per_litre"] > threshold:
+            original_price = station_copy["price_per_litre"]
+            neighbor_count = len(neighbors)
+            logger.info(
+                f"Stale price excluded: {station_copy.get('name', '<unknown>')} | "
+                f"price={original_price:.3f} | median={local_median:.3f} | "
+                f"neighbors={neighbor_count} | radius={radius_used}km | "
+                f"ts={data_timestamp}"
+            )
+            station_copy["price_per_litre"] = float("inf")
+
+        result.append(station_copy)
+
+    return result

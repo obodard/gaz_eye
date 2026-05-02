@@ -4,11 +4,16 @@ stepsCompleted:
   - step-02-design-epics
   - step-03-create-stories
   - step-04-final-validation
+  - epic-4-price-quality-filtering-2026-05-01
 status: complete
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/architecture.md
   - _bmad-output/planning-artifacts/ux-design-specification.md
+lastModified: '2026-05-01'
+changeLog:
+  - date: '2026-05-01'
+    changes: 'Added Epic 4: Price Quality Filtering — FR38–FR42 + NFR11, Stories 4.1–4.2 (detect_stale_prices engine, exemptions/kill-switch/route integration)'
 ---
 
 # gaz_eye - Epic Breakdown
@@ -59,6 +64,14 @@ FR35: System can display a meaningful error when the Régie Essence GeoJSON endp
 FR36: System can display a meaningful error when the Google Maps API returns no routes
 FR37: System can handle Google Maps API errors (invalid addresses, quota exceeded) with user-friendly messages
 
+### Price Quality Filtering
+
+FR38: System can detect stations priced more than a configurable threshold (default: 5¢/L) below their local geographic median price and exclude them from recommendations by setting their price to the unavailable sentinel (`float('inf')`)
+FR39: System can compute a local median price for each station using a density-adaptive neighbor radius: starting at 5 km and expanding to 10 km, 20 km, then 50 km until a minimum of 5 neighbors are found; stations with fewer than 5 neighbors within 50 km bypass the filter
+FR40: System can exempt stations matching configurable name substrings (case-insensitive, defined in `stations.yaml`) from anomaly detection, treating them as full recommendation candidates regardless of their price relative to neighbors
+FR41: System can disable the anomaly filter entirely via a boolean flag (`anomaly_filter_enabled`) in `stations.yaml` without a code deploy
+FR42: System can emit a structured log entry for each excluded station containing: station name, station price, local median, neighbor count, radius used, and Régie Essence data timestamp
+
 ### NonFunctional Requirements
 
 NFR1: Route query results (3 routes + station discovery + recommendations) render within 5 seconds of user submission, given normal network conditions
@@ -71,6 +84,7 @@ NFR7: Google Maps Directions API integration uses the `alternatives=true` parame
 NFR8: Régie Essence GeoJSON endpoint integration handles both pre-decompressed JSON and raw gzip responses (dual-parse strategy)
 NFR9: Régie Essence endpoint requires a browser-like User-Agent header — requests must include one to avoid being blocked
 NFR10: Google Maps JavaScript API is used for map rendering to comply with Google Maps Platform Terms of Service
+NFR11: Anomaly filter processing (spatial median computation over the full Quebec station dataset, ~3,000 stations) completes within 100ms wall-clock time
 
 ### Additional Requirements
 
@@ -143,6 +157,11 @@ FR34: Epic 3 — Safety buffer setting in SettingsDrawer
 FR35: Epic 3 — Régie Essence error inline banner
 FR36: Epic 3 — No routes found inline message
 FR37: Epic 3 — Google Maps API error handling (invalid address, quota)
+FR38: Epic 4 — detect_stale_prices(): threshold comparison + sentinel assignment
+FR39: Epic 4 — detect_stale_prices(): density-adaptive neighbor radius (5→10→20→50 km)
+FR40: Epic 4 — stations.yaml exemption list + detect_stale_prices() exemption bypass
+FR41: Epic 4 — stations.yaml anomaly_filter_enabled kill switch + routes.py bypass guard
+FR42: Epic 4 — structured log entry per excluded station (name, price, median, neighbors, radius, timestamp)
 
 ## Epic List
 
@@ -174,6 +193,16 @@ Olivier can open `http://localhost:5000`, enter a trip (origin, destination, ran
 **NFRs addressed:** NFR1 (5s full pipeline render), NFR2 (map render without lag), NFR10 (Google Maps JS API ToS compliance)
 **UX-DRs addressed:** UX-DR1 through UX-DR16 (split-pane layout, route colour coding, RouteCard 6 states + skeleton, SettingsDrawer 5 settings, bidirectional map↔card sync, inline waypoint field, StationMarker custom pins, low-range urgency state, data formatting standards, responsive/mobile layout, empty state, error banner, design tokens, typography, localStorage persistence)
 **Architecture requirements:** static/index.html as Jinja2 template (GOOGLE_MAPS_API_KEY injected into Maps JS script tag), state.js singleton (DEFAULT_SETTINGS, SETTINGS_KEY), map.js (window.initMap), app.js (loading state + error display ownership)
+
+---
+
+### Epic 4: Price Quality Filtering
+
+Every recommendation Olivier receives is backed by a spatially-validated price. Before any recommendation is built, `detect_stale_prices()` computes a density-adaptive geographic median for each station and silently excludes any station priced anomalously below its local neighborhood — likely a stale Régie listing. Known structural discounters (Costco, Olco) are explicitly exempted. The filter can be disabled instantly from `stations.yaml` without touching code. No UI changes are needed; quality improvement is entirely invisible to the user.
+
+**FRs covered:** FR38, FR39, FR40, FR41, FR42
+**NFRs addressed:** NFR11 (anomaly filter < 100ms on full dataset)
+**Architecture requirements:** `detect_stale_prices(stations, all_stations, threshold, exemptions)` in `api/pricing.py`; called in `api/routes.py` after corridor matching and before `filter_by_autonomy()`; `ANOMALY_THRESHOLD_CAD = 0.05` constant in `api/pricing.py`; `stations.yaml` new keys: `anomaly_filter_enabled` (bool), `anomaly_filter_exemptions` (list of strings); `tests/test_pricing.py` extended
 
 ---
 
@@ -554,3 +583,105 @@ So that I can rely on it in all scenarios — including a roadside low-fuel stop
 **Then** the layout stacks vertically: form fields in a single column → cards panel (full width, `p-5` card padding) → map (`h-[300px]` fixed) → footer timestamp
 **And** the settings drawer renders as a full-width panel sliding up from the bottom instead of from the right
 **And** all interactive elements meet 44×44px minimum touch target: cards, "Find routes" button, gear icon (`p-3`), "+ Add waypoint" and "×" (`min-h-[44px]`)
+
+---
+
+## Epic 4: Price Quality Filtering
+
+Every recommendation Olivier receives is backed by a spatially-validated price. Before any recommendation is built, `detect_stale_prices()` computes a density-adaptive geographic median for each station and silently excludes any station priced anomalously below its local neighborhood — likely a stale Régie listing. Known structural discounters (Costco, Olco) are explicitly exempted. The filter can be disabled instantly from `stations.yaml` without touching code. No UI changes are needed; the quality improvement is entirely invisible to the user.
+
+### Story 4.1: Stale Price Detection Engine
+
+As a developer,
+I want a pure `detect_stale_prices()` function in `api/pricing.py` that uses a density-adaptive spatial median to identify and exclude stale-priced stations,
+So that the recommendation pipeline silently filters out Régie listings that are anomalously cheap relative to their geographic neighbors before any recommendation is built.
+
+**Acceptance Criteria:**
+
+**Given** `api/pricing.py` is imported
+**When** the module is inspected
+**Then** the constant `ANOMALY_THRESHOLD_CAD = 0.05` is defined at module level — not hardcoded inside any function and not duplicated elsewhere
+
+**Given** a list of all Quebec stations (`all_stations`) each with `lat`, `lng`, and `price_per_litre` fields, a candidate station, a `threshold` value (default `ANOMALY_THRESHOLD_CAD`), and an empty exemption list
+**When** `detect_stale_prices(corridor_stations, all_stations, threshold, exemptions)` is called
+**Then** it returns a copy of `corridor_stations` where any station priced more than `threshold` below its local geographic median has its `price_per_litre` set to `float('inf')`
+**And** the original station dicts in `all_stations` are not mutated
+
+**Given** a candidate station and the `all_stations` dataset
+**When** the density-adaptive radius logic runs inside `detect_stale_prices()`
+**Then** it searches for neighbors at 5 km, then 10 km, then 20 km, then 50 km — stopping at the first radius that yields ≥5 neighbors (excluding the candidate itself)
+**And** if fewer than 5 neighbors are found within 50 km, the station bypasses the filter entirely (its price is left unchanged)
+
+**Given** a station where the local median price is 155.0¢/L and the station's price is 149.5¢/L (5.5¢/L below median, exceeding the 5¢/L default threshold)
+**When** `detect_stale_prices()` processes this station
+**Then** that station's `price_per_litre` is set to `float('inf')` in the returned list
+
+**Given** a station where the local median price is 155.0¢/L and the station's price is 150.5¢/L (4.5¢/L below median, under the default threshold)
+**When** `detect_stale_prices()` processes this station
+**Then** that station's `price_per_litre` is unchanged
+
+**Given** a station already having `price_per_litre == float('inf')` (price unavailable)
+**When** `detect_stale_prices()` processes it
+**Then** it is left unchanged — stations with no price data bypass the anomaly filter
+
+**Given** `tests/test_pricing.py` contains tests for `detect_stale_prices()`
+**When** `pytest tests/test_pricing.py` is run
+**Then** all tests pass; tests cover:
+- Station excluded at the default 5¢/L threshold (5 km neighbor radius)
+- Station kept because it is only 4¢/L below median
+- Station bypassed because fewer than 5 neighbors within 50 km
+- Station bypassed because `price_per_litre == float('inf')`
+- Density expansion: station has 3 neighbors at 5 km but ≥5 at 10 km — 10 km radius is used
+- Empty `corridor_stations` list returns an empty list without error
+- `all_stations` list is not mutated after the call
+
+**Given** the full Quebec dataset (~3,000 stations) is passed as `all_stations`
+**When** `detect_stale_prices()` processes it
+**Then** total wall-clock time is < 100ms (satisfies NFR11); no external calls are made — all computation is in-memory using Haversine distances already available from `api/geo.py`
+
+### Story 4.2: Exemptions, Kill Switch & Route Pipeline Integration
+
+As a developer,
+I want `stations.yaml` to carry the anomaly filter configuration, and the `/api/plan` route to invoke `detect_stale_prices()` at the correct pipeline position with full exemption and kill-switch support,
+So that the filter operates transparently on every trip query, can exclude structural discounters legitimately, and can be disabled in seconds without a code deploy.
+
+**Acceptance Criteria:**
+
+**Given** `stations.yaml` is opened
+**When** the file is inspected
+**Then** it contains two new top-level keys:
+- `anomaly_filter_enabled: true` (boolean, default `true`)
+- `anomaly_filter_exemptions: ["costco", "olco"]` (list of lowercase name substrings)
+**And** the existing `cities`, `settings` structure is completely unchanged
+
+**Given** `detect_stale_prices()` is called with a non-empty `exemptions` list and a station whose name contains "Costco" (any case)
+**When** the function runs
+**Then** that station is not excluded regardless of its price relative to neighbors — exemption matching is case-insensitive substring matching
+
+**Given** `anomaly_filter_enabled: true` in `stations.yaml` and a trip is requested via `POST /api/plan`
+**When** the route handler in `api/routes.py` processes the request
+**Then** `detect_stale_prices()` is called **after** `find_stations_in_corridor()` and **before** `filter_by_autonomy()` — this ordering is mandatory
+**And** the `all_stations` full dataset (not just corridor stations) is passed as the second argument
+
+**Given** `anomaly_filter_enabled: false` in `stations.yaml` and a trip is requested
+**When** the route handler processes the request
+**Then** `detect_stale_prices()` is NOT called — the pipeline proceeds directly from corridor matching to `filter_by_autonomy()`
+**And** no code deploy is required to toggle this behaviour; editing `stations.yaml` is sufficient
+
+**Given** `detect_stale_prices()` excludes a station (sets its price to `float('inf')`)
+**When** the `gaz_eye.pricing` logger emits the exclusion entry
+**Then** the log message contains all of: station name, station `price_per_litre` (dollars), local median price (dollars), neighbor count used, radius used (km), and the Régie Essence `data_timestamp`
+**And** the log is emitted at `INFO` level — it does not appear in the API response body
+
+**Given** `api/routes.py` loads filter config from `stations.yaml`
+**When** `anomaly_filter_exemptions` is missing from `stations.yaml`
+**Then** the route handler defaults to an empty exemptions list and continues without error
+
+**Given** `tests/test_routes.py` is run after this story
+**When** `pytest tests/test_routes.py` is executed
+**Then** all existing tests continue to pass
+**And** new tests cover:
+- Filter active (`anomaly_filter_enabled: true`): `detect_stale_prices()` is called with correct arguments (mocked)
+- Filter disabled (`anomaly_filter_enabled: false`): `detect_stale_prices()` is NOT called
+- Exemption list forwarded correctly to `detect_stale_prices()` when present in config
+- Missing `anomaly_filter_exemptions` key defaults to empty list without error

@@ -14,9 +14,13 @@ stepsCompleted:
   - step-10-nonfunctional
   - step-11-polish
   - step-12-complete
+  - step-e-01-discovery
+  - step-e-02-review
+  - step-e-03-edit
 releaseMode: phased
 inputDocuments:
   - _bmad-output/planning-artifacts/product-brief-gaz_eye.md
+  - _bmad-output/planning-artifacts/product-brief-stale-price-filter.md
   - _bmad-output/project-context.md
   - docs/project-overview.md
   - docs/architecture.md
@@ -24,11 +28,16 @@ inputDocuments:
   - docs/source-tree-analysis.md
   - docs/index.md
 workflowType: 'prd'
+workflow: 'edit'
 classification:
   projectType: web_app
   domain: general
   complexity: low
   projectContext: brownfield
+lastEdited: '2026-05-01'
+editHistory:
+  - date: '2026-05-01'
+    changes: 'Added Stale Price Anomaly Filter feature: Executive Summary differentiator bullet, 3 Measurable Outcomes, 5 MVP scope items, FR38-FR42 (Price Quality Filtering group), NFR11 (filter latency), updated Régie Essence freshness risk to Low'
 ---
 
 # Product Requirements Document - gaz_eye
@@ -51,6 +60,7 @@ The tool evolves an existing Python CLI (`gaz_saver.py`, 270 LOC) that already f
 - **Zero curation.** No manually maintained station lists. Every station within a configurable corridor of the route is discovered automatically.
 - **Waypoint flexibility.** Force a route through a specific location (e.g., Grenville) and compare it against Google's alternatives — factoring in fuel cost for each option.
 - **Fully private.** Runs locally on a laptop — no accounts, no cloud, no location tracking.
+- **Data you can trust.** Before recommendations are built, every station's price is validated against its geographic neighbors. Stations priced anomalously below the local median (likely stale Régie listings) are silently excluded — no UI noise, no user action required. Known structural discounters (Costco, Olco) are explicitly exempted. Competitors cannot do this without an extra network call or cache layer; gaz_eye already holds the full dataset in memory.
 
 ## Project Classification
 
@@ -85,6 +95,9 @@ The tool evolves an existing Python CLI (`gaz_saver.py`, 270 LOC) that already f
 - 100% of stations along the Montréal ↔ Duhamel corridor (via all three route options) are correctly discovered and priced
 - Autonomy filtering never recommends a station beyond the stated range minus safety buffer
 - Cross-province routes (via Hawkesbury, ON) display correctly with Quebec-only station pricing
+- Zero false positives on exempted structural discounters (Costco, Olco) — confirmed from day one
+- Anomaly filter overhead < 100ms wall-clock on the full ~3,000-station Quebec dataset
+- Anomaly filter can be disabled and re-enabled via `stations.yaml` without a code deploy
 
 ## Product Scope
 
@@ -98,6 +111,10 @@ The tool evolves an existing Python CLI (`gaz_saver.py`, 270 LOC) that already f
 - Google Maps Directions API: 3 alternative routes (including cross-province)
 - Automatic Quebec station discovery within configurable corridor (default 2 km, Haversine)
 - Real-time pricing from Régie Essence Québec GeoJSON (Quebec stations only)
+- Spatial stale-price anomaly detection: density-adaptive geographic median filter (5–50 km radius, minimum 5 neighbors) excludes stations priced anomalously below their local median before recommendations are built
+- Structural discounter exemption list (`anomaly_filter_exemptions` in `stations.yaml`) — case-insensitive substring patterns for legitimately-cheap operators (e.g., Costco, Olco)
+- Anomaly filter kill switch (`anomaly_filter_enabled` in `stations.yaml`) — disables filter instantly without a code deploy
+- Structured per-exclusion log entry (station name, price, local median, neighbor count, radius, data timestamp)
 - Fuel autonomy constraint with configurable safety buffer (default: 10% of range or 15 km, whichever is greater)
 - Per-route recommendation: cheapest reachable Quebec station
 - Savings comparison: cheapest vs. most expensive reachable station on each route
@@ -221,7 +238,7 @@ Locally-hosted single-page web application (SPA) serving one user on a macOS lap
 | Risk | Severity | Mitigation |
 |------|----------|------------|
 | Corridor matching accuracy (off-ramp stations 1-2 km from polyline) | High | Default 2 km corridor; configurable; validate against Montréal↔Duhamel corridor |
-| Régie Essence data freshness (prices may lag hours) | Medium | Display data timestamp prominently; user decides acceptability |
+| Régie Essence data freshness (prices may lag hours) | Low | Spatial anomaly filter (FR38–FR42) detects and excludes stale outliers before recommendations; data timestamp displayed prominently for remaining stations |
 | GeoJSON endpoint format change (no SLA) | Medium | Dual-parse strategy (JSON first, gzip fallback); graceful error display |
 | Google Maps ToS compliance | Medium | Use Google Maps JavaScript API for rendering (compliant by design) |
 
@@ -250,6 +267,14 @@ Locally-hosted single-page web application (SPA) serving one user on a macOS lap
 - FR13: System can parse gas prices from the Régie Essence cent-string format into dollar values
 - FR14: System can handle unavailable or missing price data gracefully (display as "n/a", exclude from recommendations)
 - FR15: System can filter stations by the user's selected fuel type (Régulier, Super, or Diesel)
+
+### Price Quality Filtering
+
+- FR38: System can detect stations priced more than a configurable threshold (default: 5¢/L) below their local geographic median price and exclude them from recommendations by setting their price to the unavailable sentinel (`float('inf')`)
+- FR39: System can compute a local median price for each station using a density-adaptive neighbor radius: starting at 5 km and expanding to 10 km, 20 km, then 50 km until a minimum of 5 neighbors are found; stations with fewer than 5 neighbors within 50 km bypass the filter
+- FR40: System can exempt stations matching configurable name substrings (case-insensitive, defined in `stations.yaml`) from anomaly detection, treating them as full recommendation candidates regardless of their price relative to neighbors
+- FR41: System can disable the anomaly filter entirely via a boolean flag (`anomaly_filter_enabled`) in `stations.yaml` without a code deploy
+- FR42: System can emit a structured log entry for each excluded station containing: station name, station price, local median, neighbor count, radius used, and Régie Essence data timestamp
 
 ### Autonomy Filtering
 
@@ -299,6 +324,7 @@ Locally-hosted single-page web application (SPA) serving one user on a macOS lap
 - NFR2: Map with 3 routes and up to 50 station markers renders without visible lag or jank
 - NFR3: Régie Essence GeoJSON dataset (gzip-compressed, all Quebec stations) is fetched and parsed within 3 seconds
 - NFR4: Corridor matching (Haversine distance for all stations against route polyline) completes within 1 second for a 300 km route
+- NFR11: Anomaly filter processing (spatial median computation over the full Quebec station dataset, ~3,000 stations) completes within 100ms wall-clock time
 
 ### Security
 

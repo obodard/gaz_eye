@@ -5,17 +5,28 @@ All HTTP routes live here. app.py only registers this blueprint — no routes
 are defined in app.py directly.
 """
 
+import logging
 import os
+from pathlib import Path
 
 import requests
+import yaml
 from flask import Blueprint, current_app, jsonify, render_template, request
 
 from api.geo import decode_polyline, find_stations_in_corridor, distance_along_route
-from api.pricing import fetch_stations, filter_by_autonomy, build_recommendation, rank_routes
+from api.pricing import (
+    build_recommendation,
+    detect_stale_prices,
+    fetch_stations,
+    filter_by_autonomy,
+    rank_routes,
+)
 
 bp = Blueprint("api", __name__)
+logger = logging.getLogger("gaz_eye.routes")
 
 DIRECTIONS_URL = "https://maps.googleapis.com/maps/api/directions/json"
+_CONFIG_PATH = Path(__file__).parent.parent / "stations.yaml"
 
 
 def _format_drive_time(seconds: int) -> str:
@@ -75,6 +86,18 @@ def plan():
     except Exception as exc:
         return jsonify({"error": "regie_essence", "message": str(exc)}), 502
 
+    try:
+        with open(_CONFIG_PATH, encoding="utf-8") as _f:
+            _yaml_cfg = yaml.safe_load(_f)
+        if not isinstance(_yaml_cfg, dict):
+            _yaml_cfg = {}
+    except (OSError, yaml.YAMLError) as _cfg_exc:
+        logger.warning(f"Could not load anomaly filter config from {_CONFIG_PATH}: {_cfg_exc}")
+        _yaml_cfg = {}
+    anomaly_filter_enabled = _yaml_cfg.get("anomaly_filter_enabled", True)
+    _raw_exemptions = _yaml_cfg.get("anomaly_filter_exemptions") or []
+    anomaly_filter_exemptions = _raw_exemptions if isinstance(_raw_exemptions, list) else [_raw_exemptions]
+
     api_key = os.environ.get("GOOGLE_MAPS_API_KEY", "")
 
     params: dict = {
@@ -128,6 +151,14 @@ def plan():
                 distance_along_route(polyline_pts, s["lat"], s["lng"]), 2
             )
 
+        if anomaly_filter_enabled:
+            corridor_stations = detect_stale_prices(
+                corridor_stations,
+                all_stations,
+                exemptions=anomaly_filter_exemptions,
+                data_timestamp=data_timestamp,
+            )
+
         reachable = filter_by_autonomy(corridor_stations, range_km, buffer_km)
 
         rec = build_recommendation(reachable, tank_litres)
@@ -135,6 +166,10 @@ def plan():
 
         for s in reachable:
             s["is_best"] = (best_station is not None and s is best_station)
+            # float('inf') is not valid JSON — replace with None so the client
+            # receives null and can display the station as "price unavailable"
+            if s.get("price_per_litre") == float("inf"):
+                s["price_per_litre"] = None
 
         routes.append({
             "label": label,

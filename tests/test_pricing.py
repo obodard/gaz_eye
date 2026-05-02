@@ -9,7 +9,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from api.pricing import fetch_stations, parse_price_value, filter_by_autonomy, build_recommendation, rank_routes
+from api.pricing import (
+    detect_stale_prices,
+    fetch_stations,
+    filter_by_autonomy,
+    build_recommendation,
+    parse_price_value,
+    rank_routes,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -392,3 +399,71 @@ class TestRankRoutes:
         """Empty routes list returns empty list without error."""
         result = rank_routes([])
         assert result == []
+
+
+# ---------------------------------------------------------------------------
+# detect_stale_prices tests
+# ---------------------------------------------------------------------------
+
+class TestDetectStalePrices:
+    """Tests for detect_stale_prices() — density-adaptive spatial median filter."""
+
+    def _st(self, lat: float, lng: float, price: float, name: str = "Station") -> dict:
+        """Build a minimal station dict."""
+        return {"name": name, "lat": lat, "lng": lng, "price_per_litre": price}
+
+    def test_station_excluded_at_threshold(self):
+        """Station 5.6¢ below local median is excluded (price set to float('inf'))."""
+        # 6 neighbors clustered at ~1.1 km (0.01° lat offset), price=1.55
+        neighbors = [self._st(45.51 + i * 0.001, -73.5, 1.55) for i in range(6)]
+        candidate = self._st(45.5, -73.5, 1.494)  # 1.55 - 1.494 = 0.056 > 0.05
+        result = detect_stale_prices([candidate], neighbors + [candidate])
+        assert result[0]["price_per_litre"] == float("inf")
+
+    def test_station_kept_below_threshold(self):
+        """Station 4.4¢ below local median is kept (under threshold)."""
+        neighbors = [self._st(45.51 + i * 0.001, -73.5, 1.55) for i in range(6)]
+        candidate = self._st(45.5, -73.5, 1.506)  # 1.55 - 1.506 = 0.044 < 0.05
+        result = detect_stale_prices([candidate], neighbors + [candidate])
+        assert result[0]["price_per_litre"] == pytest.approx(1.506)
+
+    def test_station_bypassed_insufficient_neighbors(self):
+        """Station with fewer than 5 neighbors within 50 km bypasses the filter."""
+        # 3 neighbors at ~11 km (0.1° lat offset), only 3 < 5 — filter never activates
+        neighbors = [self._st(45.5 + (i + 1) * 0.1, -73.5, 1.55) for i in range(3)]
+        candidate = self._st(45.5, -73.5, 1.40)  # would be flagged if enough neighbors existed
+        result = detect_stale_prices([candidate], neighbors + [candidate])
+        assert result[0]["price_per_litre"] == pytest.approx(1.40)
+
+    def test_station_bypassed_inf_price(self):
+        """Station with price_per_litre=float('inf') bypasses the filter unchanged."""
+        neighbors = [self._st(45.51 + i * 0.001, -73.5, 1.55) for i in range(6)]
+        candidate = self._st(45.5, -73.5, float("inf"))
+        result = detect_stale_prices([candidate], neighbors + [candidate])
+        assert result[0]["price_per_litre"] == float("inf")
+
+    def test_density_expansion_to_10km(self):
+        """3 neighbors within 5 km → expand; 8 neighbors at 10 km → median used."""
+        # 3 neighbors at ~4 km (0.036° lat ≈ 4 km), price=1.55
+        close = [self._st(45.536 + i * 0.001, -73.5, 1.55) for i in range(3)]
+        # 5 neighbors at ~9 km (0.081° lat ≈ 9 km), price=1.55
+        far = [self._st(45.581 + i * 0.001, -73.5, 1.55) for i in range(5)]
+        candidate = self._st(45.5, -73.5, 1.494)  # 5.6¢ below median of 1.55
+        result = detect_stale_prices([candidate], close + far + [candidate])
+        # 10 km radius gives 8 neighbors (≥5) → station is excluded
+        assert result[0]["price_per_litre"] == float("inf")
+
+    def test_empty_corridor_returns_empty(self):
+        """Empty corridor_stations returns [] without error."""
+        all_stations = [self._st(45.5, -73.5, 1.55)]
+        result = detect_stale_prices([], all_stations)
+        assert result == []
+
+    def test_all_stations_not_mutated(self):
+        """all_stations dicts are not mutated after a call that excludes a station."""
+        neighbors = [self._st(45.51 + i * 0.001, -73.5, 1.55) for i in range(6)]
+        candidate = self._st(45.5, -73.5, 1.494)
+        all_stations = neighbors + [candidate]
+        original_prices = [s["price_per_litre"] for s in all_stations]
+        detect_stale_prices([candidate], all_stations)
+        assert [s["price_per_litre"] for s in all_stations] == original_prices
