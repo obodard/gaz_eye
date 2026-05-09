@@ -152,12 +152,15 @@ def plan():
             )
 
         if anomaly_filter_enabled:
-            corridor_stations = detect_stale_prices(
-                corridor_stations,
-                all_stations,
-                exemptions=anomaly_filter_exemptions,
-                data_timestamp=data_timestamp,
-            )
+            try:
+                corridor_stations = detect_stale_prices(
+                    corridor_stations,
+                    all_stations,
+                    exemptions=anomaly_filter_exemptions,
+                    data_timestamp=data_timestamp,
+                )
+            except Exception as _filter_exc:
+                logger.warning(f"Anomaly filter failed: {_filter_exc}; skipping filter")
 
         reachable = filter_by_autonomy(corridor_stations, range_km, buffer_km)
 

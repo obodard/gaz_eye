@@ -34,10 +34,12 @@ classification:
   domain: general
   complexity: low
   projectContext: brownfield
-lastEdited: '2026-05-01'
+lastEdited: '2026-05-09'
 editHistory:
   - date: '2026-05-01'
     changes: 'Added Stale Price Anomaly Filter feature: Executive Summary differentiator bullet, 3 Measurable Outcomes, 5 MVP scope items, FR38-FR42 (Price Quality Filtering group), NFR11 (filter latency), updated Régie Essence freshness risk to Low'
+  - date: '2026-05-09'
+    changes: 'Extended Epic 4: FR43–FR47, bidirectional anomaly detection (expensive direction), worst_station in /api/plan response, red map marker for most expensive reachable station'
 ---
 
 # Product Requirements Document - gaz_eye
@@ -60,7 +62,7 @@ The tool evolves an existing Python CLI (`gaz_saver.py`, 270 LOC) that already f
 - **Zero curation.** No manually maintained station lists. Every station within a configurable corridor of the route is discovered automatically.
 - **Waypoint flexibility.** Force a route through a specific location (e.g., Grenville) and compare it against Google's alternatives — factoring in fuel cost for each option.
 - **Fully private.** Runs locally on a laptop — no accounts, no cloud, no location tracking.
-- **Data you can trust.** Before recommendations are built, every station's price is validated against its geographic neighbors. Stations priced anomalously below the local median (likely stale Régie listings) are silently excluded — no UI noise, no user action required. Known structural discounters (Costco, Olco) are explicitly exempted. Competitors cannot do this without an extra network call or cache layer; gaz_eye already holds the full dataset in memory.
+- **Data you can trust.** Before recommendations are built, every station's price is validated against its geographic neighbors. Stations priced anomalously below **or above** the local median (likely stale Régie listings) are silently excluded in both directions — preventing inflated savings from unrealistically cheap stations, and preventing the worst-station benchmark from being set by a stale high-price outlier. Known structural discounters (Costco, Olco) are explicitly exempted in both directions. The most expensive non-anomalous reachable station is displayed on the map as a distinct red marker, giving immediate visual context for the savings spread on each route. Competitors cannot do this without an extra network call or cache layer; gaz_eye already holds the full dataset in memory.
 
 ## Project Classification
 
@@ -95,9 +97,10 @@ The tool evolves an existing Python CLI (`gaz_saver.py`, 270 LOC) that already f
 - 100% of stations along the Montréal ↔ Duhamel corridor (via all three route options) are correctly discovered and priced
 - Autonomy filtering never recommends a station beyond the stated range minus safety buffer
 - Cross-province routes (via Hawkesbury, ON) display correctly with Quebec-only station pricing
-- Zero false positives on exempted structural discounters (Costco, Olco) — confirmed from day one
+- Zero false positives on exempted structural discounters (Costco, Olco) — confirmed from day one, in both cheap and expensive anomaly directions
 - Anomaly filter overhead < 100ms wall-clock on the full ~3,000-station Quebec dataset
 - Anomaly filter can be disabled and re-enabled via `stations.yaml` without a code deploy
+- Worst-station marker on the map always reflects a legitimately high price (never a stale outlier)
 
 ## Product Scope
 
@@ -111,10 +114,11 @@ The tool evolves an existing Python CLI (`gaz_saver.py`, 270 LOC) that already f
 - Google Maps Directions API: 3 alternative routes (including cross-province)
 - Automatic Quebec station discovery within configurable corridor (default 2 km, Haversine)
 - Real-time pricing from Régie Essence Québec GeoJSON (Quebec stations only)
-- Spatial stale-price anomaly detection: density-adaptive geographic median filter (5–50 km radius, minimum 5 neighbors) excludes stations priced anomalously below their local median before recommendations are built
-- Structural discounter exemption list (`anomaly_filter_exemptions` in `stations.yaml`) — case-insensitive substring patterns for legitimately-cheap operators (e.g., Costco, Olco)
+- Spatial stale-price anomaly detection: density-adaptive geographic median filter (5–50 km radius, minimum 5 neighbors) excludes stations priced anomalously **below or above** their local median before recommendations are built — bidirectional filtering prevents both inflated savings (cheap stale outliers) and inflated cost-differentials (expensive stale outliers)
+- Structural discounter exemption list (`anomaly_filter_exemptions` in `stations.yaml`) — case-insensitive substring patterns for legitimately-cheap operators (e.g., Costco, Olco); exemptions apply bidirectionally
 - Anomaly filter kill switch (`anomaly_filter_enabled` in `stations.yaml`) — disables filter instantly without a code deploy
-- Structured per-exclusion log entry (station name, price, local median, neighbor count, radius, data timestamp)
+- Structured per-exclusion log entry (station name, price, local median, neighbor count, radius, data timestamp) emitted for both cheap and expensive exclusions
+- Most expensive non-anomalous reachable station per route displayed on the map as a distinct red `AdvancedMarkerElement` pin alongside the cheapest station pin
 - Fuel autonomy constraint with configurable safety buffer (default: 10% of range or 15 km, whichever is greater)
 - Per-route recommendation: cheapest reachable Quebec station
 - Savings comparison: cheapest vs. most expensive reachable station on each route
@@ -238,7 +242,7 @@ Locally-hosted single-page web application (SPA) serving one user on a macOS lap
 | Risk | Severity | Mitigation |
 |------|----------|------------|
 | Corridor matching accuracy (off-ramp stations 1-2 km from polyline) | High | Default 2 km corridor; configurable; validate against Montréal↔Duhamel corridor |
-| Régie Essence data freshness (prices may lag hours) | Low | Spatial anomaly filter (FR38–FR42) detects and excludes stale outliers before recommendations; data timestamp displayed prominently for remaining stations |
+| Régie Essence data freshness (prices may lag hours) | Low | Spatial anomaly filter (FR38–FR44) detects and excludes stale outliers in both directions before recommendations; data timestamp displayed prominently for remaining stations |
 | GeoJSON endpoint format change (no SLA) | Medium | Dual-parse strategy (JSON first, gzip fallback); graceful error display |
 | Google Maps ToS compliance | Medium | Use Google Maps JavaScript API for rendering (compliant by design) |
 
@@ -275,6 +279,11 @@ Locally-hosted single-page web application (SPA) serving one user on a macOS lap
 - FR40: System can exempt stations matching configurable name substrings (case-insensitive, defined in `stations.yaml`) from anomaly detection, treating them as full recommendation candidates regardless of their price relative to neighbors
 - FR41: System can disable the anomaly filter entirely via a boolean flag (`anomaly_filter_enabled`) in `stations.yaml` without a code deploy
 - FR42: System can emit a structured log entry for each excluded station containing: station name, station price, local median, neighbor count, radius used, and Régie Essence data timestamp
+- FR43: System can detect stations priced more than a configurable threshold (default: 5¢/L) above their local geographic median price and exclude them from the worst-station selection by setting their price to the unavailable sentinel (`float('inf')`)
+- FR44: Anomaly detection is bidirectional — stations priced anomalously below or above the local geographic median are both excluded using the same threshold constant and exemption list; a structured log entry is emitted for each exclusion in either direction
+- FR45: System can include the most expensive non-anomalous reachable station (`worst_station`) per route in the `/api/plan` response, using the post-filter station list so stale high prices do not inflate savings calculations
+- FR46: System can display the most expensive reachable station per route on the map as a distinct red `AdvancedMarkerElement` circular pin alongside the cheapest station pin, differentiating it visually from the route-colour cheapest pin
+- FR47: User can hover a most-expensive station marker to see the station name and price; the marker enlarges when its route is selected, matching the selection behaviour of the cheapest station marker
 
 ### Autonomy Filtering
 
@@ -296,6 +305,8 @@ Locally-hosted single-page web application (SPA) serving one user on a macOS lap
 - FR25: User can view gas station markers on the map with price labels
 - FR26: User can distinguish between the recommended station and other stations on each route
 - FR27: User can interact with station markers to see station details (name, address, price, brand)
+- FR46: User can view the most expensive reachable station per route as a distinct red circular marker on the map, shown alongside the cheapest station marker
+- FR47: User can hover a most-expensive station marker to see its name and price; the marker enlarges on route selection, matching the cheapest station marker behaviour
 
 ### Recommendation Display
 

@@ -195,7 +195,7 @@ def detect_stale_prices(
     corridor_stations: list[dict[str, Any]],
     all_stations: list[dict[str, Any]],
     threshold: float = ANOMALY_THRESHOLD_CAD,
-    exemptions: list[str] = None,
+    exemptions: Optional[list[str]] = None,
     data_timestamp: str = "",
 ) -> list[dict[str, Any]]:
     """Return corridor_stations with anomalously cheap stations' price set to float('inf').
@@ -203,6 +203,9 @@ def detect_stale_prices(
     Uses a density-adaptive spatial median (radii: 5, 10, 20, 50 km) to detect stale prices.
     Stations with no price data, or fewer than 5 neighbors within 50 km, bypass the filter.
     """
+    if threshold < 0:
+        raise ValueError(f"threshold must be non-negative, got {threshold}")
+    
     if exemptions is None:
         exemptions = []
 
@@ -233,7 +236,7 @@ def detect_stale_prices(
         for radius in _RADII:
             candidates = [
                 s for s in valid_pool
-                if not (s["lat"] == station["lat"] and s["lng"] == station["lng"])
+                if not (math.isclose(s["lat"], station["lat"], abs_tol=1e-8) and math.isclose(s["lng"], station["lng"], abs_tol=1e-8))
                 and haversine(station["lat"], station["lng"], s["lat"], s["lng"]) <= radius
             ]
             if len(candidates) >= 5:

@@ -5,15 +5,18 @@ stepsCompleted:
   - step-03-create-stories
   - step-04-final-validation
   - epic-4-price-quality-filtering-2026-05-01
+  - epic-4-expensive-station-visibility-2026-05-09
 status: complete
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/architecture.md
   - _bmad-output/planning-artifacts/ux-design-specification.md
-lastModified: '2026-05-01'
+lastModified: '2026-05-09'
 changeLog:
   - date: '2026-05-01'
     changes: 'Added Epic 4: Price Quality Filtering — FR38–FR42 + NFR11, Stories 4.1–4.2 (detect_stale_prices engine, exemptions/kill-switch/route integration)'
+  - date: '2026-05-09'
+    changes: 'Extended Epic 4: FR43–FR47 + Stories 4.3–4.4 — bidirectional anomaly detection (expensive direction), worst_station in /api/plan response, red map marker for most expensive station'
 ---
 
 # gaz_eye - Epic Breakdown
@@ -71,6 +74,11 @@ FR39: System can compute a local median price for each station using a density-a
 FR40: System can exempt stations matching configurable name substrings (case-insensitive, defined in `stations.yaml`) from anomaly detection, treating them as full recommendation candidates regardless of their price relative to neighbors
 FR41: System can disable the anomaly filter entirely via a boolean flag (`anomaly_filter_enabled`) in `stations.yaml` without a code deploy
 FR42: System can emit a structured log entry for each excluded station containing: station name, station price, local median, neighbor count, radius used, and Régie Essence data timestamp
+FR43: System can detect stations priced more than a configurable threshold above their local geographic median and exclude them from the most-expensive selection by setting their price to the unavailable sentinel (`float('inf')`)
+FR44: Anomaly detection is bidirectional — stations priced anomalously below OR above the local geographic median are both excluded from recommendations using the same threshold constant and exemption list
+FR45: System can include the most expensive non-anomalous reachable station (`worst_station`) per route in the `/api/plan` response, using the post-filter station list so stale high prices do not inflate savings calculations
+FR46: System can display the most expensive reachable station per route on the map as a distinct red circular marker alongside the cheapest station marker, using a warning-colour pin to differentiate it from the route-colour cheapest pin
+FR47: User can hover a most-expensive station marker to see the station name and price; the marker enlarges when its route is selected, matching the selection behaviour of the cheapest station marker
 
 ### NonFunctional Requirements
 
@@ -162,6 +170,11 @@ FR39: Epic 4 — detect_stale_prices(): density-adaptive neighbor radius (5→10
 FR40: Epic 4 — stations.yaml exemption list + detect_stale_prices() exemption bypass
 FR41: Epic 4 — stations.yaml anomaly_filter_enabled kill switch + routes.py bypass guard
 FR42: Epic 4 — structured log entry per excluded station (name, price, median, neighbors, radius, timestamp)
+FR43: Epic 4 — detect_stale_prices() expensive-direction threshold: `station_price - local_median > threshold` → sentinel
+FR44: Epic 4 — bidirectional anomaly detection using same threshold and exemption list for both cheap and expensive outliers
+FR45: Epic 4 — `/api/plan` response includes `worst_station` object (post-anomaly-filter most expensive station) per route
+FR46: Epic 4 — most expensive station rendered on map as red `AdvancedMarkerElement` circular pin alongside cheapest pin
+FR47: Epic 4 — worst station marker hover tooltip + enlarge-on-route-select behaviour
 
 ## Epic List
 
@@ -196,13 +209,15 @@ Olivier can open `http://localhost:5000`, enter a trip (origin, destination, ran
 
 ---
 
-### Epic 4: Price Quality Filtering
+### Epic 4: Price Quality Filtering & Expensive Station Visibility
 
-Every recommendation Olivier receives is backed by a spatially-validated price. Before any recommendation is built, `detect_stale_prices()` computes a density-adaptive geographic median for each station and silently excludes any station priced anomalously below its local neighborhood — likely a stale Régie listing. Known structural discounters (Costco, Olco) are explicitly exempted. The filter can be disabled instantly from `stations.yaml` without touching code. No UI changes are needed; quality improvement is entirely invisible to the user.
+Every recommendation Olivier receives is backed by a spatially-validated price. Before any recommendation is built, `detect_stale_prices()` computes a density-adaptive geographic median for each station and silently excludes any station priced anomalously below **or above** its local neighborhood — preventing stale cheap prices from overstating savings, and stale high prices from inflating the cost differential. Known structural discounters (Costco, Olco) are explicitly exempted. The filter can be disabled instantly from `stations.yaml` without touching code.
 
-**FRs covered:** FR38, FR39, FR40, FR41, FR42
+Beyond backend quality, the map is extended to show the most expensive non-anomalous reachable station per route as a distinct red marker alongside the cheapest pin — giving Olivier immediate visual context for the savings spread without cluttering the map.
+
+**FRs covered:** FR38, FR39, FR40, FR41, FR42, FR43, FR44, FR45, FR46, FR47
 **NFRs addressed:** NFR11 (anomaly filter < 100ms on full dataset)
-**Architecture requirements:** `detect_stale_prices(stations, all_stations, threshold, exemptions)` in `api/pricing.py`; called in `api/routes.py` after corridor matching and before `filter_by_autonomy()`; `ANOMALY_THRESHOLD_CAD = 0.05` constant in `api/pricing.py`; `stations.yaml` new keys: `anomaly_filter_enabled` (bool), `anomaly_filter_exemptions` (list of strings); `tests/test_pricing.py` extended
+**Architecture requirements:** `detect_stale_prices()` extended with bidirectional threshold in `api/pricing.py`; `/api/plan` response extended with `worst_station` per route; `map.js` extended with red `AdvancedMarkerElement` for worst station; `ANOMALY_THRESHOLD_CAD = 0.05` covers both directions; `tests/test_pricing.py` and `tests/test_routes.py` extended
 
 ---
 
@@ -586,9 +601,11 @@ So that I can rely on it in all scenarios — including a roadside low-fuel stop
 
 ---
 
-## Epic 4: Price Quality Filtering
+## Epic 4: Price Quality Filtering & Expensive Station Visibility
 
-Every recommendation Olivier receives is backed by a spatially-validated price. Before any recommendation is built, `detect_stale_prices()` computes a density-adaptive geographic median for each station and silently excludes any station priced anomalously below its local neighborhood — likely a stale Régie listing. Known structural discounters (Costco, Olco) are explicitly exempted. The filter can be disabled instantly from `stations.yaml` without touching code. No UI changes are needed; the quality improvement is entirely invisible to the user.
+Every recommendation Olivier receives is backed by a spatially-validated price. Before any recommendation is built, `detect_stale_prices()` computes a density-adaptive geographic median for each station and silently excludes any station priced anomalously below **or above** its local neighborhood — preventing stale cheap prices from overstating savings, and stale high prices from inflating the cost differential. Known structural discounters (Costco, Olco) are explicitly exempted. The filter can be disabled instantly from `stations.yaml` without touching code.
+
+Beyond backend quality, the map is extended to show the most expensive non-anomalous reachable station per route as a distinct red marker alongside the cheapest pin — giving Olivier immediate visual context for the savings spread without cluttering the map.
 
 ### Story 4.1: Stale Price Detection Engine
 
@@ -685,3 +702,80 @@ So that the filter operates transparently on every trip query, can exclude struc
 - Filter disabled (`anomaly_filter_enabled: false`): `detect_stale_prices()` is NOT called
 - Exemption list forwarded correctly to `detect_stale_prices()` when present in config
 - Missing `anomaly_filter_exemptions` key defaults to empty list without error
+
+### Story 4.3: Bidirectional Anomaly Detection — Expensive Station Filtering
+
+As a developer,
+I want `detect_stale_prices()` to also flag stations priced anomalously above their local geographic median as stale,
+So that the `worst_station` in recommendations is always a legitimately high price and savings calculations are never inflated by stale Régie data in the expensive direction.
+
+**Acceptance Criteria:**
+
+**Given** a station where the local median price is 155.0¢/L and the station's price is 161.0¢/L (6.0¢/L above median, exceeding the 5¢/L default threshold)
+**When** `detect_stale_prices()` processes this station
+**Then** that station's `price_per_litre` is set to `float('inf')` in the returned list
+**And** a structured log entry is emitted at INFO level containing: station name, station price, local median, neighbor count, radius used, and data timestamp — identical in format to cheap-direction exclusions
+
+**Given** a station where the local median price is 155.0¢/L and the station's price is 159.4¢/L (4.4¢/L above median, under the default threshold)
+**When** `detect_stale_prices()` processes this station
+**Then** that station's `price_per_litre` is unchanged
+
+**Given** a station whose name matches an entry in `anomaly_filter_exemptions` (case-insensitive substring)
+**When** `detect_stale_prices()` processes it in the expensive direction
+**Then** the station is not excluded regardless of how far above the local median its price is — exemptions apply bidirectionally
+
+**Given** the same `ANOMALY_THRESHOLD_CAD = 0.05` constant
+**When** `detect_stale_prices()` evaluates both directions
+**Then** it uses `local_median - station_price > threshold` for the cheap direction and `station_price - local_median > threshold` for the expensive direction — same threshold, no new constant introduced
+
+**Given** `tests/test_pricing.py` contains tests for the expensive direction
+**When** `pytest tests/test_pricing.py` is run
+**Then** all existing tests continue to pass
+**And** new tests cover:
+- Station excluded in the expensive direction (price > median + threshold)
+- Station kept because it is only 4¢/L above median
+- Exempted station not excluded even when priced well above median
+- Station already `float('inf')` bypasses both directions
+- Both cheap and expensive directions evaluated in a single `detect_stale_prices()` call
+
+### Story 4.4: Most Expensive Station Map Marker
+
+As Olivier,
+I want to see the most expensive reachable gas station per route displayed on the map with a distinct red marker,
+So that I can immediately see both the best deal and the worst deal on each route without leaving the map view.
+
+**Acceptance Criteria:**
+
+**Given** the `/api/plan` route handler builds each route's response
+**When** the response JSON is serialised
+**Then** each route object includes a `worst_station` field — a station dict (same schema as `best_station`: `name`, `address`, `price_per_litre`, `lat`, `lng`, `distance_from_route_km`, `distance_from_origin_km`) or `null` if no reachable stations exist
+**And** `worst_station` is derived from the post-anomaly-filter station list so stale high prices cannot appear as the worst station
+
+**Given** `worst_station` equals `best_station` (only one reachable station)
+**When** the map renders
+**Then** only one marker is drawn for that station — not two overlapping markers
+
+**Given** `worst_station` is `null`
+**When** the map renders
+**Then** no worst-station marker is drawn for that route — no error is raised
+
+**Given** trip results are loaded and `worst_station` is non-null and distinct from `best_station`
+**When** the map renders for a route
+**Then** a second `AdvancedMarkerElement` is drawn at the worst station's coordinates using the CSS custom property `--error` (`#DC2626`, red) as the pin background colour
+**And** the pin uses the same white fuel-pump SVG icon as the best-station marker at 14px diameter
+**And** the best-station pin retains its route colour (unchanged from Story 3.4)
+
+**Given** I hover over a worst-station marker
+**When** the InfoWindow tooltip appears
+**Then** it shows the station name and price formatted as `154.9 ¢/L`, identical in format to the best-station tooltip
+
+**Given** I click a route card or polyline and `state.setSelectedRoute(index)` fires
+**When** the `routeSelected` event is handled in `map.js`
+**Then** the selected route's worst-station marker enlarges to 20px diameter with a white border ring — same selection behaviour as the best-station marker
+**And** worst-station markers for non-selected routes remain at 14px
+
+**Given** `tests/test_routes.py` is run after this story
+**When** `pytest tests/test_routes.py` is executed
+**Then** all existing tests continue to pass
+**And** a new test verifies that the success-case route response schema includes a `worst_station` field (non-null when reachable stations exist)
+**And** a new test verifies that `worst_station` is `null` when `build_recommendation()` returns `worst_station: null`

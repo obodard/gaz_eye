@@ -4,6 +4,8 @@
 
 set -e
 
+source .venv/bin/activate
+
 # Warn if API key is missing (python-dotenv loads .env inside the app)
 if [ -z "${GOOGLE_MAPS_API_KEY}" ]; then
     echo "⚠ WARNING: GOOGLE_MAPS_API_KEY is not set. Route planning will not work."
