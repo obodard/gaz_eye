@@ -515,3 +515,51 @@ class TestDetectStalePrices:
         candidate = self._st(45.5, -73.5, float('inf'))  # Already inf
         result = detect_stale_prices([candidate], neighbors + [candidate])
         assert result[0]["price_per_litre"] == float("inf")
+
+    # ---- Local corroboration bypass -----------------------------------------
+
+    def test_corroborated_cheap_station_not_excluded(self):
+        """Station with ≥2 nearby corroborators at similar price bypasses anomaly filter.
+
+        Simulates the Grenville scenario: 4 stations in the same area all at the
+        same cheap price, surrounded by more expensive stations further out.
+        """
+        # 6 distant neighbors at ~20 km, price=1.85 (Quebec-level)
+        distant = [self._st(45.68 + i * 0.001, -73.5, 1.85) for i in range(6)]
+        # 3 corroborators within 5 km, same price as candidate (Grenville-like cluster)
+        corroborators = [self._st(45.501 + i * 0.001, -73.5, 1.709) for i in range(3)]
+        candidate = self._st(45.5, -73.5, 1.709, name="Grenville Station")
+        all_stations = distant + corroborators + [candidate]
+        result = detect_stale_prices([candidate], all_stations)
+        # Candidate should NOT be excluded — 3 nearby stations confirm the price
+        assert result[0]["price_per_litre"] == pytest.approx(1.709)
+
+    def test_lone_cheap_station_still_excluded(self):
+        """Station with 0 nearby corroborators is still flagged as stale."""
+        # 6 neighbors at ~1 km, price=1.55
+        neighbors = [self._st(45.51 + i * 0.001, -73.5, 1.55) for i in range(6)]
+        # Candidate is 5.6¢ below median, no corroborators within 5 km
+        candidate = self._st(45.5, -73.5, 1.494)
+        result = detect_stale_prices([candidate], neighbors + [candidate])
+        assert result[0]["price_per_litre"] == float("inf")
+
+    def test_corroborated_expensive_station_not_excluded(self):
+        """Expensive-direction outlier with ≥2 corroborators is also kept."""
+        # 6 distant neighbors at ~20 km, price=1.50 (cheaper area)
+        distant = [self._st(45.68 + i * 0.001, -73.5, 1.50) for i in range(6)]
+        # 2 corroborators within 5 km at same expensive price
+        corroborators = [self._st(45.501 + i * 0.001, -73.5, 1.65) for i in range(2)]
+        candidate = self._st(45.5, -73.5, 1.65)
+        all_stations = distant + corroborators + [candidate]
+        result = detect_stale_prices([candidate], all_stations)
+        assert result[0]["price_per_litre"] == pytest.approx(1.65)
+
+    def test_one_corroborator_not_enough(self):
+        """Only 1 corroborator (< 2 required) does not prevent exclusion."""
+        # 6 neighbors at ~1 km, price=1.55
+        neighbors = [self._st(45.51 + i * 0.001, -73.5, 1.55) for i in range(6)]
+        # 1 corroborator within 5 km
+        corroborator = self._st(45.502, -73.5, 1.494)
+        candidate = self._st(45.5, -73.5, 1.494)
+        result = detect_stale_prices([candidate], neighbors + [corroborator, candidate])
+        assert result[0]["price_per_litre"] == float("inf")

@@ -190,6 +190,9 @@ def rank_routes(routes: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 _RADII = [5.0, 10.0, 20.0, 50.0]
 
+_CORROBORATION_RADIUS_KM = 5.0
+_CORROBORATION_MIN_COUNT = 2
+
 
 def detect_stale_prices(
     corridor_stations: list[dict[str, Any]],
@@ -198,10 +201,11 @@ def detect_stale_prices(
     exemptions: Optional[list[str]] = None,
     data_timestamp: str = "",
 ) -> list[dict[str, Any]]:
-    """Return corridor_stations with anomalously cheap stations' price set to float('inf').
+    """Return corridor_stations with anomalously priced stations' price set to float('inf').
 
     Uses a density-adaptive spatial median (radii: 5, 10, 20, 50 km) to detect stale prices.
-    Stations with no price data, or fewer than 5 neighbors within 50 km, bypass the filter.
+    Stations with no price data, fewer than 5 neighbors within 50 km, or whose price is
+    corroborated by ≥2 nearby stations (within 5 km and within threshold) bypass the filter.
     """
     if threshold < 0:
         raise ValueError(f"threshold must be non-negative, got {threshold}")
@@ -254,6 +258,17 @@ def detect_stale_prices(
         cheap_outlier = local_median - station["price_per_litre"] > threshold
         expensive_outlier = station["price_per_litre"] - local_median > threshold
         if cheap_outlier or expensive_outlier:
+            # Bypass: price corroborated by nearby stations at similar price
+            corroborators = [
+                s for s in valid_pool
+                if not (math.isclose(s["lat"], station["lat"], abs_tol=1e-8) and math.isclose(s["lng"], station["lng"], abs_tol=1e-8))
+                and haversine(station["lat"], station["lng"], s["lat"], s["lng"]) <= _CORROBORATION_RADIUS_KM
+                and abs(s["price_per_litre"] - station["price_per_litre"]) <= threshold
+            ]
+            if len(corroborators) >= _CORROBORATION_MIN_COUNT:
+                result.append(station_copy)
+                continue
+
             original_price = station_copy["price_per_litre"]
             neighbor_count = len(neighbors)
             logger.info(
