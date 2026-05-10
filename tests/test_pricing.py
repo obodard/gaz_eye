@@ -467,3 +467,51 @@ class TestDetectStalePrices:
         original_prices = [s["price_per_litre"] for s in all_stations]
         detect_stale_prices([candidate], all_stations)
         assert [s["price_per_litre"] for s in all_stations] == original_prices
+
+    # ---- Expensive direction (Story 4.3) ------------------------------------
+
+    def test_station_excluded_expensive_direction(self):
+        """Station 5.6¢ above local median is excluded (price set to float('inf'))."""
+        neighbors = [self._st(45.51 + i * 0.001, -73.5, 1.55) for i in range(6)]
+        candidate = self._st(45.5, -73.5, 1.606)  # 1.606 - 1.55 = 0.056 > 0.05
+        result = detect_stale_prices([candidate], neighbors + [candidate])
+        assert result[0]["price_per_litre"] == float("inf")
+
+    def test_station_kept_expensive_below_threshold(self):
+        """Station 4.4¢ above local median is kept (under threshold)."""
+        neighbors = [self._st(45.51 + i * 0.001, -73.5, 1.55) for i in range(6)]
+        candidate = self._st(45.5, -73.5, 1.594)  # 1.594 - 1.55 = 0.044 < 0.05
+        result = detect_stale_prices([candidate], neighbors + [candidate])
+        assert result[0]["price_per_litre"] == pytest.approx(1.594)
+
+    def test_exempted_station_not_excluded_expensive(self):
+        """Exempted station is not excluded even when priced well above median."""
+        neighbors = [self._st(45.51 + i * 0.001, -73.5, 1.55) for i in range(6)]
+        candidate = self._st(45.5, -73.5, 1.70, name="Costco Laval")  # 15¢ above median
+        result = detect_stale_prices([candidate], neighbors + [candidate], exemptions=["costco"])
+        assert result[0]["price_per_litre"] == pytest.approx(1.70)
+
+    def test_both_directions_in_single_call(self):
+        """Cheap outlier and expensive outlier are both excluded in a single call."""
+        neighbors = [self._st(45.51 + i * 0.001, -73.5, 1.55) for i in range(6)]
+        cheap = self._st(45.5, -73.5, 1.494)     # 5.6¢ below median → excluded
+        expensive = self._st(45.52, -73.5, 1.606)  # 5.6¢ above median → excluded
+        normal = self._st(45.53, -73.5, 1.55)      # at median → kept
+        result = detect_stale_prices(
+            [cheap, expensive, normal],
+            neighbors + [cheap, expensive, normal],
+        )
+        result_by_original_price = {
+            round(r.get("price_per_litre", -1), 3): r for r in result
+        }
+        # cheap and expensive → inf; normal → unchanged
+        assert result[0]["price_per_litre"] == float("inf")   # cheap excluded
+        assert result[1]["price_per_litre"] == float("inf")   # expensive excluded
+        assert result[2]["price_per_litre"] == pytest.approx(1.55)  # normal kept
+
+    def test_inf_station_bypasses_both_directions(self):
+        """Station already set to float('inf') remains inf regardless of median."""
+        neighbors = [self._st(45.51 + i * 0.001, -73.5, 1.55) for i in range(6)]
+        candidate = self._st(45.5, -73.5, float('inf'))  # Already inf
+        result = detect_stale_prices([candidate], neighbors + [candidate])
+        assert result[0]["price_per_litre"] == float("inf")

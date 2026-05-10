@@ -389,3 +389,68 @@ class TestPlanAnomalyFilter:
         # Filter should be active (default True) with empty exemptions
         mock_detect.assert_called()
         assert mock_detect.call_args.kwargs["exemptions"] == []
+
+
+# ---------------------------------------------------------------------------
+# worst_station in route response (Story 4.4)
+# ---------------------------------------------------------------------------
+
+class TestWorstStation:
+    """Tests for worst_station field in POST /api/plan route response."""
+
+    @patch("api.routes.requests.get")
+    @patch("api.routes.fetch_stations")
+    def test_route_schema_includes_worst_station(self, mock_fetch, mock_get, client):
+        """Success case: worst_station field is present and non-null when reachable stations exist."""
+        # _make_stations(3) produces 3 stations with prices 1.50, 1.51, 1.52
+        mock_fetch.return_value = (_make_stations(3), "2026-05-01T00:00:00Z")
+        mock_get.return_value = _make_mock_get(_make_gm_response(1))
+
+        resp = client.post("/api/plan", json=_VALID_BODY)
+
+        assert resp.status_code == 200
+        route = resp.get_json()["routes"][0]
+        assert "worst_station" in route, "worst_station key must be present in route response"
+        # With 3 stations having valid prices, worst_station must be non-null
+        assert route["worst_station"] is not None
+
+    @patch("api.routes.build_recommendation")
+    @patch("api.routes.requests.get")
+    @patch("api.routes.fetch_stations")
+    def test_worst_station_null_when_no_reachable_stations(
+        self, mock_fetch, mock_get, mock_build, client
+    ):
+        """worst_station is null when build_recommendation returns worst_station=None."""
+        mock_fetch.return_value = (_make_stations(3), "2026-05-01T00:00:00Z")
+        mock_get.return_value = _make_mock_get(_make_gm_response(1))
+        mock_build.return_value = {
+            "best_station": None,
+            "worst_station": None,
+            "savings_per_litre": 0.0,
+            "savings_per_tank": 0.0,
+        }
+
+        resp = client.post("/api/plan", json=_VALID_BODY)
+
+        assert resp.status_code == 200
+        route = resp.get_json()["routes"][0]
+        assert "worst_station" in route
+        assert route["worst_station"] is None
+
+    @patch("api.routes.requests.get")
+    @patch("api.routes.fetch_stations")
+    def test_worst_station_price_serializes_to_null(self, mock_fetch, mock_get, client):
+        """worst_station with float('inf') price correctly serializes to null in JSON."""
+        mock_fetch.return_value = (_make_stations(3), "2026-05-01T00:00:00Z")
+        mock_get.return_value = _make_mock_get(_make_gm_response(1))
+
+        resp = client.post("/api/plan", json=_VALID_BODY)
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        route = data["routes"][0]
+        # worst_station should be non-null (we have 3 stations with valid prices)
+        assert route["worst_station"] is not None
+        # Price should be a finite number, not null (stations have valid prices)
+        assert isinstance(route["worst_station"]["price_per_litre"], (int, float))
+        assert route["worst_station"]["price_per_litre"] is not None

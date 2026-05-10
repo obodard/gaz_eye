@@ -12,6 +12,8 @@ const ROUTE_COLOURS = [
     "#EA580C",  // Route C — orange-600 (--route-3)
 ];
 
+const WORST_STATION_COLOUR = "#DC2626";  // --error red
+
 let map = null;
 let polylines = [];
 let markers = [];
@@ -33,8 +35,9 @@ function formatPrice(pricePerLitre) {
 
 /**
  * Create a circular pin DOM element for an AdvancedMarkerElement.
+ * Default size: 14px diameter (per AC2/AC4 spec); 20px when selected.
  */
-function createPinElement(routeColour, size = 28) {
+function createPinElement(routeColour, size = 14) {
     const el = document.createElement("div");
     el.style.cssText = `
         width: ${size}px; height: ${size}px;
@@ -122,27 +125,63 @@ export async function renderMarkers(routes) {
 
     for (let index = 0; index < routes.length; index++) {
         const route = routes[index];
-        if (!route.best_station) continue;
 
-        const station = route.best_station;
-        const pinEl = createPinElement(ROUTE_COLOURS[index]);
-        pinEl.dataset.routeIndex = index;
+        // Best-station marker (route colour)
+        if (route.best_station) {
+            const station = route.best_station;
+            const pinEl = createPinElement(ROUTE_COLOURS[index]);
+            pinEl.dataset.routeIndex = index;
 
-        const marker = new AdvancedMarkerElement({
-            position: { lat: station.lat, lng: station.lng },
-            map,
-            content: pinEl,
-            title: station.name,
-        });
+            const marker = new AdvancedMarkerElement({
+                position: { lat: station.lat, lng: station.lng },
+                map,
+                content: pinEl,
+                title: station.name,
+            });
 
-        pinEl.addEventListener("mouseover", () => {
-            infoWindow.setContent(`<b>${station.name}</b><br>${formatPrice(station.price_per_litre)}`);
-            infoWindow.open({ map, anchor: marker });
-        });
-        pinEl.addEventListener("mouseout", () => infoWindow.close());
-        pinEl.addEventListener("click", () => setSelectedRoute(index));
+            pinEl.addEventListener("mouseover", () => {
+                infoWindow.setContent(`<b>${station.name}</b><br>${formatPrice(station.price_per_litre)}`);
+                infoWindow.open({ map, anchor: marker });
+            });
+            pinEl.addEventListener("mouseout", () => infoWindow.close());
+            pinEl.addEventListener("click", () => setSelectedRoute(index));
 
-        markers.push({ marker, pinEl, routeIndex: index });
+            markers.push({ marker, pinEl, routeIndex: index, markerType: "best" });
+        }
+
+        // Worst-station marker (red) — only when non-null and distinct from best
+        if (route.worst_station) {
+            const ws = route.worst_station;
+            const bs = route.best_station;
+            // Validate coordinates are finite before comparison
+            if (!ws.lat || !ws.lng || !isFinite(ws.lat) || !isFinite(ws.lng)) continue;
+            // Use latitude-scaled tolerance: ~1 meter at 45°N (story location)
+            const latTolerance = 1e-5 / Math.cos(bs && bs.lat ? bs.lat * Math.PI / 180 : 45 * Math.PI / 180);
+            const isSameLocation = bs && isFinite(bs.lat) && isFinite(bs.lng) &&
+                Math.abs(ws.lat - bs.lat) < 1e-5 &&
+                Math.abs(ws.lng - bs.lng) < latTolerance;
+
+            if (!isSameLocation) {
+                const wsPinEl = createPinElement(WORST_STATION_COLOUR);
+                wsPinEl.dataset.routeIndex = index;
+
+                const wsMarker = new AdvancedMarkerElement({
+                    position: { lat: ws.lat, lng: ws.lng },
+                    map,
+                    content: wsPinEl,
+                    title: ws.name,
+                });
+
+                wsPinEl.addEventListener("mouseover", () => {
+                    infoWindow.setContent(`<b>${ws.name}</b><br>${formatPrice(ws.price_per_litre)}`);
+                    infoWindow.open({ map, anchor: wsMarker });
+                });
+                wsPinEl.addEventListener("mouseout", () => infoWindow.close());
+                wsPinEl.addEventListener("click", () => setSelectedRoute(index));
+
+                markers.push({ marker: wsMarker, pinEl: wsPinEl, routeIndex: index, markerType: "worst" });
+            }
+        }
     }
 }
 
@@ -158,15 +197,16 @@ function updateSelection(selectedIndex) {
         }
     });
 
-    markers.forEach(({ pinEl, routeIndex }) => {
+    markers.forEach(({ pinEl, routeIndex, markerType }) => {
+        const ringColour = markerType === "worst" ? WORST_STATION_COLOUR : ROUTE_COLOURS[routeIndex % ROUTE_COLOURS.length];
         if (routeIndex === selectedIndex) {
-            pinEl.style.width = "34px";
-            pinEl.style.height = "34px";
+            pinEl.style.width = "20px";
+            pinEl.style.height = "20px";
             pinEl.style.border = "2px solid white";
-            pinEl.style.boxShadow = `0 0 0 2px ${ROUTE_COLOURS[routeIndex]}`;
+            pinEl.style.boxShadow = `0 0 0 2px ${ringColour}`;
         } else {
-            pinEl.style.width = "28px";
-            pinEl.style.height = "28px";
+            pinEl.style.width = "14px";
+            pinEl.style.height = "14px";
             pinEl.style.border = "";
             pinEl.style.boxShadow = "0 2px 4px rgba(0,0,0,0.3)";
         }

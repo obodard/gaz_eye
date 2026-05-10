@@ -250,3 +250,4 @@ Claude Sonnet 4.6
 ### Change Log
 
 - 2026-05-01: Implemented Google Maps bidirectional sync as part of Epic 3 batch implementation.
+- 2026-05-10: Code review identified marker size discrepancy (implemented 28px/34px vs spec 14px/20px). Corrected to 14px/20px per spec during Story 4.4 review for consistency. UX review confirmed 14px is appropriate for simple gas station markers.

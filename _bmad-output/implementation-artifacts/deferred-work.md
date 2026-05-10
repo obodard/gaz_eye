@@ -48,4 +48,14 @@
 ## Deferred from: code review of 4-2-exemptions-killswitch-route-integration (2026-05-01)
 
 - **YAML config re-read from disk on every `/api/plan` request** — intentional design per dev notes (enables kill-switch without restart). File is ~40 lines; disk I/O cost negligible vs upstream network calls. Revisit if profiling shows this as a hot path.
+
+---
+
+## Deferred from: code review of 4-3-bidirectional-anomaly-detection & 4-4-most-expensive-station-map-marker (2026-05-10)
+
+- **Marker Array Lifecycle Management** — markers pushed to global array but cleanup relies on `clearRoutes()` being called consistently. If routes re-render partially without full cleanup, memory leak or stale references possible. Pre-existing pattern in map.js (not introduced in 4.3/4.4); refactor opportunity for future spike.
+
+- **Hard-Coded Marker Type String "worst"** — marker type ("best" vs "worst") uses string literals; typo could break silently. Pre-existing pattern for best markers; could be refactored to constants in future. Low practical risk given tight coupling in same module.
+
+- **Route Colour Array Finite (only 3 colours)** — FIXED in code review. Backend `api/routes.py` limits `/api/plan` response to 3 alternatives (Google Maps spec); no runtime issue. Added modulo bounds check `ROUTE_COLOURS[routeIndex % ROUTE_COLOURS.length]` for defensive robustness if spec changes.
 - **`builtins.open` mock in `TestPlanAnomalyFilter` intercepts all `open()` calls in handler** — if `plan()` ever opens an additional file, tests will silently feed it YAML content. Acceptable for current single-file-open handler; tighten to `api.routes.open` or use `mock_open` on `_CONFIG_PATH` specifically when the handler grows.

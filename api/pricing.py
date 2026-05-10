@@ -251,7 +251,9 @@ def detect_stale_prices(
 
         local_median = statistics.median(s["price_per_litre"] for s in neighbors)
 
-        if local_median - station["price_per_litre"] > threshold:
+        cheap_outlier = local_median - station["price_per_litre"] > threshold
+        expensive_outlier = station["price_per_litre"] - local_median > threshold
+        if cheap_outlier or expensive_outlier:
             original_price = station_copy["price_per_litre"]
             neighbor_count = len(neighbors)
             logger.info(

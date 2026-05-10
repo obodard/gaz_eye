@@ -166,6 +166,9 @@ def plan():
 
         rec = build_recommendation(reachable, tank_litres)
         best_station = rec["best_station"]
+        # worst_station is derived from post-anomaly-filter stations (via reachable list)
+        # so stale high prices cannot appear as the worst station (per AC1 of Story 4.4)
+        worst_station = rec["worst_station"]
 
         for s in reachable:
             s["is_best"] = (best_station is not None and s is best_station)
@@ -181,6 +184,7 @@ def plan():
             "polyline_encoded": encoded_polyline,
             "stations": reachable,
             "best_station": best_station,
+            "worst_station": worst_station,
             "savings_per_litre": rec["savings_per_litre"],
             "savings_per_tank_litres": rec["savings_per_tank"],
         })
