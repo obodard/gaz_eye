@@ -35,9 +35,9 @@ function formatPrice(pricePerLitre) {
 
 /**
  * Create a circular pin DOM element for an AdvancedMarkerElement.
- * Default size: 14px diameter (per AC2/AC4 spec); 20px when selected.
+ * Default size: 28px diameter; 34px when selected.
  */
-function createPinElement(routeColour, size = 14) {
+function createPinElement(routeColour, size = 28) {
     const el = document.createElement("div");
     el.style.cssText = `
         width: ${size}px; height: ${size}px;
@@ -200,13 +200,13 @@ function updateSelection(selectedIndex) {
     markers.forEach(({ pinEl, routeIndex, markerType }) => {
         const ringColour = markerType === "worst" ? WORST_STATION_COLOUR : ROUTE_COLOURS[routeIndex % ROUTE_COLOURS.length];
         if (routeIndex === selectedIndex) {
-            pinEl.style.width = "20px";
-            pinEl.style.height = "20px";
+            pinEl.style.width = "34px";
+            pinEl.style.height = "34px";
             pinEl.style.border = "2px solid white";
             pinEl.style.boxShadow = `0 0 0 2px ${ringColour}`;
         } else {
-            pinEl.style.width = "14px";
-            pinEl.style.height = "14px";
+            pinEl.style.width = "28px";
+            pinEl.style.height = "28px";
             pinEl.style.border = "";
             pinEl.style.boxShadow = "0 2px 4px rgba(0,0,0,0.3)";
         }
