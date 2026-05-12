@@ -294,11 +294,13 @@ function renderCard(route, index, bestIndex) {
         <div style="font-size:18px;font-weight:600;color:var(--text-primary);margin-bottom:2px;">
             ${formatPrice(route.best_station.price_per_litre)}
         </div>
-        ${savings
+        ${savings && !tankSavings
             ? `<div style="font-size:20px;font-weight:700;color:var(--accent);margin-bottom:2px;">${savings}</div>`
+            : savings
+            ? `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:2px;">${savings}</div>`
             : ""}
         ${tankSavings
-            ? `<div style="font-size:12px;color:var(--text-secondary);">${tankSavings}</div>`
+            ? `<div style="font-size:20px;font-weight:700;color:var(--accent);margin-bottom:2px;">${tankSavings}</div>`
             : ""}
         <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">
             ${escapeHtml(route.best_station.name || "")}
