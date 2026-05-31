@@ -16,7 +16,7 @@ cities:
 
   - city: "CH\u00C9N\u00C9VILLE"
     stations:
-      - address: "115 rue Principale"
+      - address: "115 rue Principale, CH"
 
   - city: "Grenneville"
     stations:
