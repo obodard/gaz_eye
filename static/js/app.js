@@ -4,7 +4,7 @@
  * error/reachability banners, loading states, and edge-case handling.
  */
 
-import { state, loadSettings, saveSettings, DEFAULT_SETTINGS, setSelectedRoute } from "./state.js";
+import { state, loadSettings, saveSettings, DEFAULT_SETTINGS, setSelectedRoute, sessionId } from "./state.js";
 import { renderRoutes, renderMarkers, clearRoutes } from "./map.js";
 
 // Route colour CSS variables (matching --route-1/2/3 in style.css)
@@ -471,6 +471,18 @@ async function submitTrip() {
         renderRoutes(data.routes);
         await renderMarkers(data.routes);
         updateTimestampDisplay(data.data_timestamp);
+
+        // Silently inject trip context into ADK session (fire-and-forget)
+        fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                message: `[TRIP CONTEXT] origin="${origin}", destination="${destination}", range_km=${rangeKm}, waypoints=${JSON.stringify(body.waypoints || [])}`,
+                session_id: sessionId,
+                is_context_update: true,
+            }),
+        }).catch(() => {});
+
         setSelectedRoute(0);
     } catch (err) {
         showError("internal", err.message);

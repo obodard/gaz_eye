@@ -51,6 +51,16 @@
             <!-- Route cards container -->
             <p id="empty-state">Enter a trip above to see route options.</p>
             <div id="route-cards"></div>
+
+            <!-- Chat panel — persistent at bottom of cards column -->
+            <div id="chat-panel" class="chat-collapsed">
+                <button type="button" id="chat-toggle" aria-label="Toggle chat">▲</button>
+                <div id="chat-messages"></div>
+                <div id="chat-input-bar">
+                    <input type="text" id="chat-input" placeholder="Ask me to plan a trip…" autocomplete="off">
+                    <button type="button" id="chat-send-btn" aria-label="Send">➤</button>
+                </div>
+            </div>
         </div>
 
         <!-- Map container — Google Maps renders here -->
@@ -121,6 +131,7 @@
          app.js must load before the Maps CDN so window.initMap is set when Maps calls back
          ───────────────────────────────────────── -->
     <script type="module" src="/static/js/app.js"></script>
+    <script type="module" src="/static/js/chat.js"></script>
     <script async defer
         src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=geometry&callback=initMap&loading=async">
     </script>

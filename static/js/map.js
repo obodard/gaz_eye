@@ -212,3 +212,77 @@ function updateSelection(selectedIndex) {
         }
     });
 }
+
+// ---------------------------------------------------------------------------
+// Marker filtering (Story 5.5)
+// ---------------------------------------------------------------------------
+
+let hiddenMarkers = [];
+
+/**
+ * Haversine distance in km between two lat/lng points.
+ */
+function haversineKm(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * Hide markers outside a 25 km radius of the given coordinates.
+ * Show a filter badge on the map container.
+ */
+export function filterMarkers(areaName, lat, lng) {
+    // Restore any previously hidden markers first
+    restoreMarkers();
+
+    markers.forEach((entry) => {
+        const pos = entry.marker.position;
+        if (!pos) return;
+        const mLat = typeof pos.lat === "function" ? pos.lat() : pos.lat;
+        const mLng = typeof pos.lng === "function" ? pos.lng() : pos.lng;
+        const dist = haversineKm(lat, lng, mLat, mLng);
+        if (dist > 25) {
+            entry.marker.map = null;
+            hiddenMarkers.push(entry);
+        }
+    });
+
+    // Show filter badge
+    let badge = document.getElementById("filter-badge");
+    if (!badge) {
+        badge = document.createElement("div");
+        badge.id = "filter-badge";
+        const mapEl = document.getElementById("map");
+        if (mapEl) mapEl.appendChild(badge);
+    }
+    badge.innerHTML = "";
+    badge.textContent = "";
+    const textNode = document.createTextNode(`📍 ${areaName} · `);
+    badge.appendChild(textNode);
+    const clearLink = document.createElement("a");
+    clearLink.href = "#";
+    clearLink.textContent = "Show all";
+    clearLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        restoreMarkers();
+    });
+    badge.appendChild(clearLink);
+}
+
+/**
+ * Restore all previously hidden markers and remove the filter badge.
+ */
+export function restoreMarkers() {
+    hiddenMarkers.forEach((entry) => {
+        entry.marker.map = map;
+    });
+    hiddenMarkers = [];
+
+    const badge = document.getElementById("filter-badge");
+    if (badge) badge.remove();
+}

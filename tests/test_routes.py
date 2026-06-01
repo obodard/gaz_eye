@@ -454,3 +454,228 @@ class TestWorstStation:
         # Price should be a finite number, not null (stations have valid prices)
         assert isinstance(route["worst_station"]["price_per_litre"], (int, float))
         assert route["worst_station"]["price_per_litre"] is not None
+
+
+# ---------------------------------------------------------------------------
+# POST /api/chat endpoint (Story 5.2)
+# ---------------------------------------------------------------------------
+
+def _make_adk_response_with_function_call():
+    """ADK response with a functionCall and a text part."""
+    return {
+        "result": "ok",
+        "events": [
+            {
+                "author": "gaz_eye_assistant",
+                "content": {
+                    "parts": [
+                        {
+                            "functionCall": {
+                                "name": "submit_trip",
+                                "args": {"origin": "Montréal", "destination": "Duhamel", "range_km": 180},
+                            }
+                        }
+                    ]
+                },
+            },
+            {
+                "author": "gaz_eye_assistant",
+                "content": {
+                    "parts": [
+                        {"text": "Planning Montréal → Duhamel with 180 km range — loading routes."}
+                    ]
+                },
+            },
+        ],
+    }
+
+
+def _make_adk_response_text_only():
+    """ADK response with only a text part (no function call)."""
+    return {
+        "result": "ok",
+        "events": [
+            {
+                "author": "gaz_eye_assistant",
+                "content": {
+                    "parts": [{"text": "What is your destination?"}]
+                },
+            },
+        ],
+    }
+
+
+def _make_mock_post(response_dict, status_code=200):
+    """Return a mock for requests.post."""
+    mock_resp = MagicMock()
+    mock_resp.status_code = status_code
+    mock_resp.json.return_value = response_dict
+    return mock_resp
+
+
+class TestChatEndpoint:
+    """Tests for POST /api/chat — ADK proxy endpoint."""
+
+    @patch("api.routes.requests.post")
+    def test_function_call_normalized(self, mock_post, client):
+        """ADK response with functionCall → normalized {action, params, message}."""
+        mock_post.return_value = _make_mock_post(_make_adk_response_with_function_call())
+
+        resp = client.post("/api/chat", json={
+            "message": "Montréal to Duhamel, 180 km range",
+            "session_id": "abc-123",
+            "is_context_update": False,
+        })
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["action"] == "submit_trip"
+        assert data["params"]["origin"] == "Montréal"
+        assert data["params"]["destination"] == "Duhamel"
+        assert data["message"] == "Planning Montréal → Duhamel with 180 km range — loading routes."
+
+    @patch("api.routes.requests.post")
+    def test_text_only_response(self, mock_post, client):
+        """ADK response with only text → action 'chat_only', empty params."""
+        mock_post.return_value = _make_mock_post(_make_adk_response_text_only())
+
+        resp = client.post("/api/chat", json={
+            "message": "Where should I go?",
+            "session_id": "abc-123",
+            "is_context_update": False,
+        })
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["action"] == "chat_only"
+        assert data["params"] == {}
+        assert data["message"] == "What is your destination?"
+
+    @patch("api.routes.requests.post")
+    def test_adk_timeout_returns_502(self, mock_post, client):
+        """ADK timeout → HTTP 502 with correct error body."""
+        import requests as req_lib
+        mock_post.side_effect = req_lib.Timeout("10s timeout")
+
+        resp = client.post("/api/chat", json={
+            "message": "Hello",
+            "session_id": "abc-123",
+            "is_context_update": False,
+        })
+
+        assert resp.status_code == 502
+        data = resp.get_json()
+        assert data["error"] == "adk_agent"
+        assert "form" in data["message"].lower()
+
+    @patch("api.routes.requests.post")
+    def test_adk_connection_refused_returns_502(self, mock_post, client):
+        """ADK connection refused → HTTP 502."""
+        import requests as req_lib
+        mock_post.side_effect = req_lib.ConnectionError("Connection refused")
+
+        resp = client.post("/api/chat", json={
+            "message": "Hello",
+            "session_id": "abc-123",
+            "is_context_update": False,
+        })
+
+        assert resp.status_code == 502
+        data = resp.get_json()
+        assert data["error"] == "adk_agent"
+
+    @patch("api.routes.requests.post")
+    def test_context_update_returns_204(self, mock_post, client):
+        """is_context_update=true → HTTP 204 with no body."""
+        mock_post.return_value = _make_mock_post(_make_adk_response_text_only())
+
+        resp = client.post("/api/chat", json={
+            "message": "[TRIP CONTEXT] origin=Montréal",
+            "session_id": "abc-123",
+            "is_context_update": True,
+        })
+
+        assert resp.status_code == 204
+        assert resp.data == b""
+
+    @patch("api.routes.requests.post")
+    def test_context_update_adk_down_still_204(self, mock_post, client):
+        """Context update with ADK down → still returns 204."""
+        import requests as req_lib
+        mock_post.side_effect = req_lib.ConnectionError("down")
+
+        resp = client.post("/api/chat", json={
+            "message": "[TRIP CONTEXT] origin=Montréal",
+            "session_id": "abc-123",
+            "is_context_update": True,
+        })
+
+        assert resp.status_code == 204
+
+    @patch("api.routes.requests.post")
+    def test_adk_500_returns_502(self, mock_post, client):
+        """ADK returns HTTP 500 → Flask returns 502."""
+        mock_resp = MagicMock()
+        mock_resp.ok = False
+        mock_resp.status_code = 500
+        mock_post.return_value = mock_resp
+
+        resp = client.post("/api/chat", json={
+            "message": "Hello",
+            "session_id": "abc-123",
+            "is_context_update": False,
+        })
+
+        assert resp.status_code == 502
+        data = resp.get_json()
+        assert data["error"] == "adk_agent"
+
+    @patch("api.routes.requests.post")
+    def test_unknown_action_falls_back_to_chat_only(self, mock_post, client):
+        """Unknown action name from ADK → fallback to 'chat_only'."""
+        adk_response = {
+            "result": "ok",
+            "events": [
+                {
+                    "author": "gaz_eye_assistant",
+                    "content": {
+                        "parts": [
+                            {"functionCall": {"name": "unknown_action", "args": {"foo": "bar"}}},
+                            {"text": "I did something unexpected."},
+                        ]
+                    },
+                },
+            ],
+        }
+        mock_post.return_value = _make_mock_post(adk_response)
+
+        resp = client.post("/api/chat", json={
+            "message": "Do something weird",
+            "session_id": "abc-123",
+            "is_context_update": False,
+        })
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["action"] == "chat_only"
+        assert data["params"] == {}
+        assert "unexpected" in data["message"]
+
+    @patch("api.routes.requests.post")
+    def test_adk_request_payload_format(self, mock_post, client):
+        """Verify the ADK request payload matches the expected format."""
+        mock_post.return_value = _make_mock_post(_make_adk_response_text_only())
+
+        client.post("/api/chat", json={
+            "message": "Hello world",
+            "session_id": "test-session",
+            "is_context_update": False,
+        })
+
+        call_kwargs = mock_post.call_args
+        payload = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+        assert payload["app_name"] == "gaz_eye_assistant"
+        assert payload["user_id"] == "local_user"
+        assert payload["session_id"] == "test-session"
+        assert payload["new_message"]["role"] == "user"
+        assert payload["new_message"]["parts"][0]["text"] == "Hello world"

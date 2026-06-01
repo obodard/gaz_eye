@@ -5,6 +5,9 @@
 
 const SETTINGS_KEY = "gaz_eye_settings";
 
+/** Session ID for ADK chat — regenerated on each page load, never persisted. */
+export const sessionId = crypto.randomUUID();
+
 const DEFAULT_SETTINGS = {
     fuel_type: "Régulier",
     tank_litres: 60,
