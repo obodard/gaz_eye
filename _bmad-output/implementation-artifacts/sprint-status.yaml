@@ -1,6 +1,6 @@
 # Sprint Status — gaz_eye
 # generated: 2026-05-09
-# last_updated: 2026-05-10
+# last_updated: 2026-05-31
 # project: gaz_eye
 # project_key: NOKEY
 # tracking_system: file-system
@@ -25,7 +25,7 @@
 #   - done: Retrospective completed
 
 generated: 2026-05-09
-last_updated: 2026-05-10
+last_updated: 2026-05-31
 project: gaz_eye
 project_key: NOKEY
 tracking_system: file-system
@@ -62,3 +62,12 @@ development_status:
   4-3-bidirectional-anomaly-detection: done
   4-4-most-expensive-station-map-marker: done
   epic-4-retrospective: optional
+
+  # Epic 5: Conversational Assistant
+  epic-5: done
+  5-1-adk-agent-definition-gemini-client: done
+  5-2-post-api-chat-proxy-endpoint: done
+  5-3-route-context-injection: done
+  5-4-chat-box-component: done
+  5-5-chat-state-management-action-dispatch: done
+  epic-5-retrospective: optional

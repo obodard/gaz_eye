@@ -272,10 +272,10 @@ gaz_eye collapses all three into one screen.
 ### Experience Mechanics — Primary Flow
 
 **1. Initiation**
-The form is always visible. No landing page, no hero section. Origin, destination, range (km), optional waypoint(s). One "Find routes" button. The form is the homepage.
+The form is always visible. No landing page, no hero section. Origin, destination, range (km), optional waypoint(s). One "Find routes" button. The form is the homepage. A collapsed chat bar at the bottom of the left panel offers a conversational alternative — the user can type a trip description instead of filling the form.
 
 **2. Interaction**
-User fills the form (fields pre-populated with last trip via localStorage). Clicks "Find routes". A subtle loading state appears over the map and card area (spinner or skeleton cards — never a full-page block).
+User fills the form (fields pre-populated with last trip via localStorage) or types a trip description in the chat panel. Clicks "Find routes" or presses Enter in the chat. A subtle loading state appears over the map and card area (spinner or skeleton cards — never a full-page block). If initiated via chat, the form fields flash green as they auto-fill.
 
 **3. Response**
 Three cards render side-by-side (or stacked on narrow viewport). The recommended card (best price/savings) has a visible highlight. The map simultaneously draws three coloured route polylines with one pin per route for the recommended station.
@@ -343,13 +343,18 @@ Drive time and savings are the two numbers the user reads first — they get the
 │  Cards panel         │  Google Map                  │
 │  (3 route cards,     │  (fills remaining height,    │
 │   ~380px wide)       │   route polylines + pins)    │
+│                      │  [Filter badge if active]    │
 │                      │                              │
+├──────────────────────┤                              │
+│  Chat input bar      │                              │
+│  (collapsed, ~48px)  │                              │
 └──────────────────────┴──────────────────────────────┘
 │  Footer: data timestamp (Régie Essence generated_at) │
 └─────────────────────────────────────────────────────┘
 ```
 
 - Cards panel: fixed width ~380px, scrollable if cards overflow
+- Chat panel: anchored to bottom of left column, collapsed by default (input bar only); expands upward over cards
 - Map: `flex-1`, fills available width
 - Cards stack vertically; no horizontal scroll
 - 16px internal card padding; 12px gap between cards
@@ -513,17 +518,66 @@ flowchart TD
 - Urban context may return fewer than 3 distinct routes — cards gracefully show 1–2, not 3 empty placeholders
 - Dense station coverage means savings spread may be small — card hierarchy still works
 
+### J5 — Chat-Initiated Trip (Conversational Start)
+
+**Scenario:** Olivier opens gaz_eye and types a trip description into the chat panel instead of filling the form.
+
+```mermaid
+flowchart TD
+    A([Open app]) --> B[Chat bar visible at bottom of cards panel\nCollapsed · input ready]
+    B --> C[Type: 'Montréal to Duhamel, 180 km range']
+    C --> D[Chat expands · user bubble appears\nTyping indicator in thread]
+    D --> E[ADK extracts params\nFlask returns action: submit_trip]
+    E --> F[Form fields flash green highlight\nSkeleton cards appear\nToast: 'Planning Montréal → Duhamel...']
+    F --> G[3 cards render · map draws routes\nChat collapses back to input bar]
+    G --> H{Want to modify?}
+    H -- Yes --> I[Type: 'Add a stop through Grenville']
+    I --> J[Waypoint field appears + highlights\nRe-submits automatically]
+    J --> K[Updated routes render\nGrenville route included]
+    H -- No --> L([Pick a card · Done])
+    K --> L
+```
+
+**Key UX moments:**
+- Chat is a parallel entry point — form-based workflow is untouched; user can switch freely between form and chat
+- Form field flash (green highlight) provides a visual bridge: "your chat message → form populated → results loading"
+- Toast confirmation appears even when chat is collapsed, so the user knows the action fired
+- Follow-up messages ("add Grenville") work because ADK session retains trip context
+
+### J7 — Chat-Driven Map Filtering (Price Exploration)
+
+**Scenario:** Olivier submitted a trip and wants to focus on pricing near a specific area.
+
+```mermaid
+flowchart TD
+    A([Trip results loaded\n3 routes on screen]) --> B[Type: 'Show only the prices in Tremblant']
+    B --> C[ADK returns filter_stations_by_area\narea_name: Tremblant · lat/lng]
+    C --> D[map.js filterMarkers hides\nstations outside ~25 km radius]
+    D --> E[Filter badge appears on map\n📍 Tremblant · Show all]
+    E --> F{Done exploring?}
+    F -- Yes --> G[Type: 'Show all stations'\nor click 'Show all' on badge]
+    G --> H[map.js restoreMarkers\nAll markers visible · badge removed]
+    F -- No --> I([Continue browsing filtered view])
+```
+
+**Key UX moments:**
+- Route cards, polylines, and savings remain unchanged — the filter is visual-only on station markers
+- Filter badge on the map prevents "where did my stations go?" confusion
+- Two ways to clear the filter: chat command or click the badge — both call the same `restoreMarkers()`
+
 ### Journey Patterns
 
-**Entry pattern:** Form is always the starting state. No home screen, no menu. Direct to value.
+**Entry pattern:** Form is always the starting state. No home screen, no menu. Direct to value. Chat is a parallel entry point — always visible as a collapsed input bar at the bottom of the cards panel.
 
-**Loading pattern:** Skeleton cards (matching card dimensions) appear during the API call — the layout doesn't jump when results arrive.
+**Loading pattern:** Skeleton cards (matching card dimensions) appear during the API call — the layout doesn't jump when results arrive. Chat actions that trigger form submission use the same loading pattern.
 
 **Selection pattern:** Any card click = route selected. Any map polyline click = corresponding card focused. No confirmation step.
 
-**Waypoint pattern:** Inline field expansion. `+ Add waypoint` appends a labeled text input below the destination field. `×` removes it. Max 1 waypoint for MVP.
+**Waypoint pattern:** Inline field expansion. `+ Add waypoint` appends a labeled text input below the destination field. `×` removes it. Max 1 waypoint for MVP. Waypoints can also be added via chat — the same field appears and populates.
 
-**Error pattern:** API errors (Maps or Régie Essence) show an inline banner within the cards panel, not a full-page error. The map remains visible.
+**Chat pattern:** Collapsible panel at the bottom of the left column. Collapsed = input bar only. Expanded = message thread + input. Actions dispatch to form/map automatically. Confirmations appear as toasts when collapsed.
+
+**Error pattern:** API errors (Maps or Régie Essence) show an inline banner within the cards panel, not a full-page error. Chat errors show an error-styled bubble in the chat thread. The map remains visible in both cases.
 
 ### Flow Optimization Principles
 
@@ -615,13 +669,84 @@ Three components require bespoke design. All others are Tailwind compositions.
 
 **Hover tooltip:** Station name + price on hover (Google Maps InfoWindow or custom overlay div).
 
+---
+
+#### 4. Chat Panel (`<ChatPanel>`)
+
+**Purpose:** Provides a conversational interface for trip initiation, waypoint addition, and map filtering — an alternative to the form that never replaces it.
+
+**Layout position (desktop ≥ 1024px):** Anchored to the bottom of the left column (cards panel). Default state: **collapsed** — only the input bar is visible (~48px). Expanded state: overlays the cards panel upward, covering up to 60% of available height. A small chevron handle above the input toggles between states.
+
+**Layout position (mobile < 768px):** Fixed-position bottom bar (`position: fixed; bottom: 0; width: 100%`). Expanded state slides up covering the map area; cards remain visible above.
+
+**Anatomy (collapsed):**
+```
+┌──────────────────────────────────────────┐
+│  ▲  [Ask me to plan a trip…] [Send ▶]    │  48px
+└──────────────────────────────────────────┘
+```
+
+**Anatomy (expanded):**
+```
+┌──▼──────────────────────────────────────┐
+│  Chat messages (scrollable)              │
+│                                          │
+│  ┌─ User ────────────────────────┐      │
+│  │ Montréal to Duhamel, 180 km   │      │
+│  └───────────────────────────────┘      │
+│        ┌─ Assistant ─────────────┐      │
+│        │ Planning Montréal →     │      │
+│        │ Duhamel — loading routes│      │
+│        └─────────────────────────┘      │
+│                                          │
+│  [Ask me to plan a trip…] [Send ▶]       │
+└──────────────────────────────────────────┘
+```
+
+**States:**
+
+| State | Visual |
+|-------|--------|
+| Collapsed (default) | Input bar only, chevron ▲ pointing up |
+| Expanded | Message thread + input, chevron ▼ pointing down |
+| Waiting for response | Input disabled, typing indicator (3 bouncing dots) in thread |
+| ADK error | Error-styled assistant bubble: red-tinted `--error` border, message "Assistant unavailable — use the form to plan your trip." |
+| Collapsed + waiting | Typing indicator replaces placeholder text in collapsed input bar |
+
+**Bubble styling:**
+- **User bubble:** `--text-primary` (#111827) background, white text, `border-radius: 12px 12px 0 12px`, right-aligned
+- **Assistant bubble:** `--surface` (#FFFFFF) background, `--border` border, `--text-primary` text, `border-radius: 12px 12px 12px 0`, left-aligned
+- **Error bubble:** `--surface` background, `--error` border, `--error` text
+
+**Design rationale:** Chat bubbles deliberately avoid route colours (blue/purple/orange) to prevent false visual association with route cards. The chat is a *utility channel*, not a *data surface* — its visual weight is intentionally lower than the cards.
+
+**Action confirmation toast:** When chat dispatches `submit_trip` or `add_waypoint`, a brief toast appears at the bottom of the cards panel: `text-sm`, `--text-secondary` colour, auto-dismisses after 4 seconds. Format: `🗨 "Added Grenville as a waypoint — refreshing routes."` This provides confirmation even when the chat panel is collapsed.
+
+**Form field flash:** When chat auto-fills form fields, the affected inputs flash with `--accent-light` (#DCFCE7) background (200ms ease-in, 800ms hold, 200ms ease-out). This visual bridge connects the chat action to the form update.
+
+**Typing indicator:** Three dots with CSS `@keyframes bounce` animation — no JavaScript animation. Rendered in the message thread when expanded, or inline in the input bar when collapsed.
+
+---
+
+#### 5. Filter Badge (`<FilterBadge>`)
+
+**Purpose:** Indicates when a geographic station filter is active on the map, preventing confusion about "missing" stations.
+
+**Design:** Small pill badge positioned top-left on the map container (over the map, `z-index` above polylines). `--surface` background, `--border` border, `border-radius: 8px`, `text-sm`, semi-transparent backdrop (`backdrop-filter: blur(4px)`).
+
+**Content:** `📍 [Area name] · Show all` — the "Show all" text is a clickable link (`--route-1` blue, underline on hover) that calls `restoreMarkers()`.
+
+**States:** Visible when `filterMarkers()` is active; hidden when filter is cleared.
+
 ### Component Implementation Strategy
 
-- All components are implemented in the frontend (HTML + Alpine.js or vanilla JS)
+- All components are implemented in the frontend (HTML + vanilla JS)
 - Components share design tokens via Tailwind config (custom colours for routes, accent, warning)
 - `<RouteCard>` is the most complex; implement it first as it drives the entire results view
-- `<SettingsDrawer>` uses Alpine.js `x-show` + `x-transition` for the slide animation
+- `<SettingsDrawer>` uses vanilla JS `classList.add/remove` for the slide animation
 - `<StationMarker>` uses the Google Maps JS API `AdvancedMarkerElement` with a custom `PinElement` or HTML content
+- `<ChatPanel>` uses vanilla JS for collapse/expand toggle and message rendering; `chat.js` owns all chat DOM interactions
+- `<FilterBadge>` is created/destroyed by `map.js` when `filterMarkers()`/`restoreMarkers()` are called
 
 ### Implementation Roadmap
 
@@ -629,12 +754,14 @@ Three components require bespoke design. All others are Tailwind compositions.
 1. `<RouteCard>` — default + best-value + selected states + skeleton
 2. `<SettingsDrawer>` — open/close + all 5 settings + localStorage persistence
 3. `<StationMarker>` — route-coloured pin + hover tooltip
+4. `<ChatPanel>` — collapsed/expanded + input + message thread + action dispatch
+5. `<FilterBadge>` — show/hide on map filter state
 
 **Phase 2 — Polish (after core flow works):**
-4. `<RouteCard>` expandable section (other reachable stations)
-5. `<RouteCard>` no-stations state
-6. Low-range amber banner component
-7. API error inline banner
+6. `<RouteCard>` expandable section (other reachable stations)
+7. `<RouteCard>` no-stations state
+8. Low-range amber banner component
+9. API error inline banner
 
 ## UX Consistency Patterns
 
@@ -661,8 +788,13 @@ No secondary buttons, no destructive buttons, no icon-only buttons (except the g
 | No stations reachable (one route) | Gray card with clear explanation + km shortfall | Non-interactive card, not hidden |
 | API error (Maps or Régie Essence) | Inline red banner inside cards panel: "Could not load [source]. Try again." | `bg-red-50 border-red-200 text-red-700` |
 | No routes found | Inline message with suggestion (check origin/destination spelling) | Same inline banner treatment |
+| Chat action dispatched | Brief toast at bottom of cards panel: confirmation text | `text-sm text-secondary`, auto-dismiss 4s |
+| Chat form auto-fill | Affected form fields flash green | `--accent-light` bg, 200ms in / 800ms hold / 200ms out |
+| Chat waiting for response | Typing indicator (3 bouncing dots) in chat thread or collapsed input bar | CSS `@keyframes bounce`, no JS animation |
+| Chat ADK error | Error-styled assistant bubble in chat thread | `--error` border, fallback message |
+| Map filter active | Filter badge top-left on map: area name + "Show all" | `--surface` bg, `--border`, `text-sm` |
 
-**Rule:** No toast notifications. All feedback is inline and persistent until resolved. The user is not surprised by disappearing messages.
+**Rule:** No toast notifications for trip results or errors. All feedback for the core trip flow is inline and persistent until resolved. The **only exception** is the chat action confirmation toast, which auto-dismisses because the action itself produces visible results (cards reload, form populates).
 
 ### Form Patterns
 
@@ -693,6 +825,8 @@ The only navigation events are:
 1. **Open settings drawer** (gear icon) → drawer slides in, overlay dims map
 2. **Close settings drawer** (× or click overlay) → drawer slides out
 3. **Select route** (click card or map polyline) → in-place state update, no navigation
+4. **Expand chat panel** (chevron or typing in collapsed input) → chat thread overlays cards panel
+5. **Collapse chat panel** (chevron) → chat thread hides, input bar remains visible
 
 ### Loading States
 
@@ -702,6 +836,8 @@ The only navigation events are:
 | Map | Semi-transparent overlay with a centered spinner SVG |
 | Submit button | Disabled state + spinner icon replaces text while loading |
 | Form fields | No change — remain editable (user can cancel by changing fields) |
+| Chat panel (waiting for ADK response) | Input disabled, typing indicator (3 bouncing dots) appears in message thread; if collapsed, dots replace placeholder text in input bar |
+| Chat panel (action dispatching) | Action fires immediately on response; no separate loading state for the dispatch itself |
 
 Skeleton card dimensions must match loaded card dimensions exactly to prevent layout shift on results render.
 
@@ -713,6 +849,9 @@ Skeleton card dimensions must match loaded card dimensions exactly to prevent la
 | < 3 routes returned | Show only the routes Google Maps returned (1–2 cards). Don't show empty card placeholders. |
 | 0 stations reachable on all routes | Show all route cards in gray/no-station state + a suggestion to increase range or widen corridor |
 | Régie Essence data stale (> 24h) | Footer timestamp colour changes to amber — no blocking UI |
+| Chat panel (no messages yet) | Collapsed input bar with placeholder "Ask me to plan a trip…" — no empty thread visible |
+| Chat ADK unavailable | Error-styled assistant bubble: "Assistant unavailable — use the form to plan your trip." Input re-enabled for retry |
+| Map filter active (no visible change) | Filter badge on map confirms filter is active; user can click "Show all" to restore |
 
 ### Data Display Patterns
 
@@ -750,12 +889,14 @@ Two breakpoints only — matching Tailwind's `md` and `lg`:
 │  Cards (full width, scroll) │
 ├─────────────────────────────┤
 │  Map (fixed 300px height)   │
+├─────────────────────────────┤
+│  Chat input bar (fixed bot) │
 └─────────────────────────────┘
 │  Footer: timestamp          │
 └─────────────────────────────┘
 ```
 
-On mobile, the map moves below the cards. The cards panel is the primary surface; the map is a supporting reference. Card widths are full-width (`w-full`).
+On mobile, the map moves below the cards. The cards panel is the primary surface; the map is a supporting reference. Card widths are full-width (`w-full`). The chat panel renders as a fixed-position bottom bar; expanded state slides up covering the map area (not the cards).
 
 ### Accessibility Strategy
 

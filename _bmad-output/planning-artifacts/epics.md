@@ -6,17 +6,22 @@ stepsCompleted:
   - step-04-final-validation
   - epic-4-price-quality-filtering-2026-05-01
   - epic-4-expensive-station-visibility-2026-05-09
+  - epic-5-conversational-assistant-2026-05-31
 status: complete
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/architecture.md
   - _bmad-output/planning-artifacts/ux-design-specification.md
-lastModified: '2026-05-09'
+lastModified: '2026-05-31'
 changeLog:
   - date: '2026-05-01'
     changes: 'Added Epic 4: Price Quality Filtering — FR38–FR42 + NFR11, Stories 4.1–4.2 (detect_stale_prices engine, exemptions/kill-switch/route integration)'
   - date: '2026-05-09'
     changes: 'Extended Epic 4: FR43–FR47 + Stories 4.3–4.4 — bidirectional anomaly detection (expensive direction), worst_station in /api/plan response, red map marker for most expensive station'
+  - date: '2026-05-31'
+    changes: 'Added Epic 5: Conversational Assistant — FR48–FR66 + NFR12–NFR14, Stories 5.1–5.5 (ADK agent definition, /api/chat proxy endpoint, route context injection, chat box component, chat state management & action dispatch)'
+  - date: '2026-05-31'
+    changes: 'PM alignment check after UX review: added FR67 (filter badge with click-to-clear on map) to close gap between UX-DR21 and FR60 chat-only clearing path; updated Epic 5 FRs covered and FR Coverage Map'
 ---
 
 # gaz_eye - Epic Breakdown
@@ -80,6 +85,29 @@ FR45: System can include the most expensive non-anomalous reachable station (`wo
 FR46: System can display the most expensive reachable station per route on the map as a distinct red circular marker alongside the cheapest station marker, using a warning-colour pin to differentiate it from the route-colour cheapest pin
 FR47: User can hover a most-expensive station marker to see the station name and price; the marker enlarges when its route is selected, matching the selection behaviour of the cheapest station marker
 
+### Conversational Assistant
+
+FR48: System displays a persistent chat panel alongside the map and route cards, accessible at all times regardless of trip state
+FR49: User can type natural-language messages into the chat panel to initiate trips, modify routes, or filter the map display
+FR50: System displays assistant responses in the chat panel with confirmation of the action taken (e.g., "Added Grenville as a waypoint — refreshing routes.")
+FR51: When the user describes a trip via chat (e.g., "Montréal to Duhamel, 180 km range"), the ADK agent extracts origin, destination, and optional range/waypoints into structured parameters
+FR52: After extraction, the frontend auto-fills the trip form fields with the extracted values and automatically submits the plan request — no manual click required
+FR53: If the agent cannot extract a required field (origin or destination), it responds in the chat asking the user to clarify, rather than submitting an incomplete request
+FR54: When the user requests adding a waypoint via chat (e.g., "add a route through Grenville"), the ADK agent extracts the waypoint location and returns an `add_waypoint` action
+FR55: The frontend appends the extracted waypoint to the current trip parameters, preserving existing origin, destination, and range, and re-submits the plan request
+FR56: Waypoint addition via chat works identically whether the original trip was submitted via the form or via chat
+FR57: When the user requests a geographic price filter via chat (e.g., "show only the prices in Tremblant"), the ADK agent extracts the area name and returns a `filter_stations_by_area` action with the area name and approximate coordinates
+FR58: The frontend filters map station markers to display only stations within a reasonable radius of the specified area — all other markers are hidden
+FR59: Geographic map filters apply to station markers only; route polylines, route cards, and savings recommendations remain unchanged
+FR60: User can clear a geographic filter via chat (e.g., "show all stations") to restore the full marker display
+FR61: A dedicated Google ADK agent handles all chat interactions, running as a separate service with its own process
+FR62: The Flask backend exposes a `/api/chat` endpoint that proxies user messages to the ADK agent service and relays structured responses to the frontend
+FR63: The ADK agent uses the Gemini API for natural language understanding, intent classification, and parameter extraction
+FR64: The ADK agent defines structured tools (`submit_trip`, `add_waypoint`, `filter_stations_by_area`, `clear_filter`) that map to gaz_eye UI actions
+FR65: The ADK agent returns JSON responses containing `action` (the tool/intent name), `params` (extracted values), and `message` (a human-readable confirmation to display in the chat)
+FR66: The ADK agent maintains conversation context within a session so follow-up messages (e.g., "now add Grenville") resolve against the current trip state without requiring the user to repeat origin/destination
+FR67: When a geographic station filter is active, a filter badge appears on the map container displaying the filtered area name and a clickable "Show all" link; clicking the link clears the filter and restores all station markers without requiring chat interaction
+
 ### NonFunctional Requirements
 
 NFR1: Route query results (3 routes + station discovery + recommendations) render within 5 seconds of user submission, given normal network conditions
@@ -93,6 +121,9 @@ NFR8: Régie Essence GeoJSON endpoint integration handles both pre-decompressed 
 NFR9: Régie Essence endpoint requires a browser-like User-Agent header — requests must include one to avoid being blocked
 NFR10: Google Maps JavaScript API is used for map rendering to comply with Google Maps Platform Terms of Service
 NFR11: Anomaly filter processing (spatial median computation over the full Quebec station dataset, ~3,000 stations) completes within 100ms wall-clock time
+NFR12: Chat round-trip (user message → Flask proxy → ADK agent → Gemini API → structured response → UI action) completes within 5 seconds under normal network conditions
+NFR13: The ADK agent service is started alongside the Flask backend via the existing `run.sh` entry point (single launch command)
+NFR14: Gemini API key is stored server-side only — consumed by the ADK agent process, never exposed to the frontend or included in client-side source
 
 ### Additional Requirements
 
@@ -106,6 +137,15 @@ NFR11: Anomaly filter processing (spatial median computation over the full Quebe
 - `run.sh` launch script: Sets `FLASK_APP=app.py`, `FLASK_ENV=development`, loads `.env`, runs `flask run`; must warn if `GOOGLE_MAPS_API_KEY` is unset — single key used for both backend Directions API and frontend JS API injection
 - Tests: `tests/` directory at project root with `pytest`; `test_pricing.py`, `test_geo.py`, `test_routes.py`; mock `requests.get` for all network calls
 - `.gitignore` requirements: `.env`, `__pycache__/`, `*.pyc`
+- ADK agent package: `agent/` directory at project root with `agent/__init__.py` (exports `root_agent`) and `agent/agent.py` (defines `root_agent`, `SYSTEM_INSTRUCTION`, 4 tool functions returning `{"ok": True}`)
+- ADK separate service: `adk api_server agent --port 5001` launched in `run.sh` alongside Flask; ADK process PID stored, killed via `trap EXIT` on Ctrl-C
+- Gemini API key isolation: `GEMINI_API_KEY` in `.env` (gitignored), consumed exclusively by the ADK agent process — Flask never reads, forwards, or logs it; `.env.example` updated with `GEMINI_API_KEY=`
+- Chat proxy: `POST /api/chat` in `api/routes.py` proxies to `http://localhost:5001/run` via `requests.post(timeout=10)`; normalizes ADK events list to `{action, params, message}` schema
+- Context injection protocol: `app.js` fires a silent `POST /api/chat` with `is_context_update: true` after each successful `/api/plan` response; `api/routes.py` detects this flag, proxies to ADK, and returns HTTP 204 — no body, no frontend UI update
+- Session ID management: `state.js` generates `sessionId = crypto.randomUUID()` in memory on page load — in-memory only, never persisted in `localStorage`
+- `chat.js` new module: owns chat panel input handling, message thread rendering, action dispatch (`submit_trip`, `add_waypoint`, `filter_stations_by_area`, `clear_filter`, `chat_only`)
+- `map.js` extensions: `filterMarkers(area_name, lat, lng)` hides out-of-radius station markers; `restoreMarkers()` restores all hidden markers — both exported functions
+- `requirements.txt` addition: `google-adk>=1.0`
 
 ### UX Design Requirements
 
@@ -125,6 +165,12 @@ UX-DR13: Implement the inline API error banner inside the cards panel: `bg-red-5
 UX-DR14: Apply the design token colour system as CSS custom properties: `--bg: #F9FAFB`, `--surface: #FFFFFF`, `--border: #E5E7EB`, `--text-primary: #111827`, `--text-secondary: #6B7280`, `--accent: #16A34A`, `--accent-light: #DCFCE7`, `--warning: #F59E0B`, `--error: #DC2626`
 UX-DR15: Apply Inter (Google Fonts) typography system: drive time `text-2xl font-bold`, savings `text-xl font-bold`, price `text-lg font-semibold`, route label `text-base font-medium`, secondary data `text-sm`, timestamp `text-xs`
 UX-DR16: Implement settings and last trip persistence via localStorage key `gaz_eye_settings`; on page load, pre-populate all form fields (including origin/destination) from last saved values
+UX-DR17: Chat panel renders as a collapsible bottom section of the left column; default state is collapsed showing only the input bar (~48px height); expanded state overlays the cards panel up to 60% of available height; a small chevron handle above the input toggles collapse/expand; the panel is visible at all times regardless of trip state
+UX-DR18: Chat user bubbles use `--text-primary` (#111827) background with white text and `border-radius: 12px 12px 0 12px`; assistant bubbles use `--surface` white background with `--border` border and `border-radius: 12px 12px 12px 0`; never use route colours for chat bubbles to avoid false visual association with route cards
+UX-DR19: When chat dispatches an action-bearing response (`submit_trip`, `add_waypoint`), a brief confirmation toast appears at the bottom of the cards panel in `text-sm` `--text-secondary` style; the toast auto-dismisses after 4 seconds; `chat_only`, `filter_stations_by_area`, and `clear_filter` actions do not trigger a toast
+UX-DR20: When chat auto-fills form fields via `submit_trip` or `add_waypoint` dispatch, the affected input fields flash with `--accent-light` (#DCFCE7) background (200ms ease-in, 800ms hold, 200ms ease-out) before the loading state activates, providing a visual bridge between chat input and form action
+UX-DR21: When `filterMarkers()` is active, a dismissable filter badge appears top-left on the map container: "📍 [Area name] · Show all" with a clickable "Show all" link that calls `restoreMarkers()`; badge uses `--surface` background with `--border` border, `text-sm`, `border-radius: 8px`, semi-transparent backdrop; badge disappears when filter is cleared
+UX-DR22: Below 768px, `#chat-panel` renders as a fixed-position bottom bar (`position: fixed; bottom: 0; width: 100%`) with the input field always visible; expanded state slides up covering the map area (not the cards); cards remain visible and scrollable above the chat panel
 
 ### FR Coverage Map
 
@@ -175,6 +221,26 @@ FR44: Epic 4 — bidirectional anomaly detection using same threshold and exempt
 FR45: Epic 4 — `/api/plan` response includes `worst_station` object (post-anomaly-filter most expensive station) per route
 FR46: Epic 4 — most expensive station rendered on map as red `AdvancedMarkerElement` circular pin alongside cheapest pin
 FR47: Epic 4 — worst station marker hover tooltip + enlarge-on-route-select behaviour
+FR48: Epic 5 — persistent `#chat-panel` in `index.html` accessible at all times regardless of trip state
+FR49: Epic 5 — `chat.js` input field + send button for natural-language message entry
+FR50: Epic 5 — `chat.js` renders assistant `message` confirmation in thread after action fires
+FR51: Epic 5 — `agent/agent.py` `submit_trip` tool: extracts origin, destination, range_km, waypoints[]
+FR52: Epic 5 — `chat.js` `submit_trip` dispatch: auto-fills form fields + programmatically submits `/api/plan`
+FR53: Epic 5 — `SYSTEM_INSTRUCTION` clarifying-question rule prevents `submit_trip` call with missing origin/destination
+FR54: Epic 5 — `agent/agent.py` `add_waypoint` tool: extracts waypoint location string
+FR55: Epic 5 — `chat.js` `add_waypoint` dispatch: appends waypoint to form + re-submits `/api/plan`
+FR56: Epic 5 — `add_waypoint` dispatch preserves existing form state (origin, destination, range) from either form or chat submission
+FR57: Epic 5 — `agent/agent.py` `filter_stations_by_area` tool: extracts area_name, lat, lng
+FR58: Epic 5 — `map.js` `filterMarkers(area_name, lat, lng)` hides station markers outside radius
+FR59: Epic 5 — `filterMarkers()` leaves polylines, route cards, and savings calculations untouched
+FR60: Epic 5 — `map.js` `restoreMarkers()` makes all previously hidden markers visible again
+FR61: Epic 5 — `agent/` package: Google ADK agent running as separate service on `localhost:5001`
+FR62: Epic 5 — `api/routes.py` `POST /api/chat`: Flask proxy to ADK service with 10s timeout + HTTP 502 on failure
+FR63: Epic 5 — `agent/agent.py` `model="gemini-2.0-flash"` handles NL understanding and extraction
+FR64: Epic 5 — `agent/agent.py` registers 4 structured tools on `root_agent`
+FR65: Epic 5 — `api/routes.py` normalizes ADK events list to `{action, params, message}` JSON response
+FR66: Epic 5 — `state.js` `sessionId` (UUID, in-memory) carried in every `POST /api/chat` request for session continuity
+FR67: Epic 5 — `map.js` filter badge on map container when `filterMarkers()` active; clickable "Show all" link calls `restoreMarkers()`
 
 ## Epic List
 
@@ -218,6 +284,17 @@ Beyond backend quality, the map is extended to show the most expensive non-anoma
 **FRs covered:** FR38, FR39, FR40, FR41, FR42, FR43, FR44, FR45, FR46, FR47
 **NFRs addressed:** NFR11 (anomaly filter < 100ms on full dataset)
 **Architecture requirements:** `detect_stale_prices()` extended with bidirectional threshold in `api/pricing.py`; `/api/plan` response extended with `worst_station` per route; `map.js` extended with red `AdvancedMarkerElement` for worst station; `ANOMALY_THRESHOLD_CAD = 0.05` covers both directions; `tests/test_pricing.py` and `tests/test_routes.py` extended
+
+---
+
+### Epic 5: Conversational Assistant
+
+Olivier can type natural-language messages in a persistent chat panel to plan trips, add waypoints, and filter the map — without ever touching the form. A Google ADK agent backed by Gemini 2.0 Flash runs as a separate service (`localhost:5001`), classifies intent, extracts structured parameters, and returns a normalized `{action, params, message}` response. Flask proxies the exchange through `POST /api/chat`. Trip context is silently injected into the ADK session after each successful route plan so follow-up messages resolve correctly. If the ADK service is unavailable, the form-based workflow is unaffected.
+
+**FRs covered:** FR48, FR49, FR50, FR51, FR52, FR53, FR54, FR55, FR56, FR57, FR58, FR59, FR60, FR61, FR62, FR63, FR64, FR65, FR66, FR67
+**NFRs addressed:** NFR12 (5s chat round-trip), NFR13 (single `run.sh` launch), NFR14 (Gemini API key server-side only)
+**UX-DRs addressed:** UX-DR17 (collapsible chat panel in left column), UX-DR18 (chat bubble styling — neutral colours, no route-colour interference), UX-DR19 (action confirmation toast), UX-DR20 (form field flash on chat auto-fill), UX-DR21 (active filter badge on map), UX-DR22 (mobile fixed-bottom chat bar)
+**Architecture requirements:** `agent/` package (`agent.py` with `root_agent` + 4 tools + `SYSTEM_INSTRUCTION`, `__init__.py`); `api/routes.py` `POST /api/chat` proxy (10s timeout, HTTP 204 for context updates, HTTP 502 on ADK failure); `run.sh` updated (ADK on port 5001 + `trap EXIT`); `state.js` extended with `sessionId` (UUID, in-memory); `static/js/chat.js` new module (input, render, action dispatch); `map.js` extended with `filterMarkers()` + `restoreMarkers()`; `requirements.txt` + `google-adk>=1.0`; `.env.example` + `GEMINI_API_KEY=`
 
 ---
 
@@ -779,3 +856,275 @@ So that I can immediately see both the best deal and the worst deal on each rout
 **Then** all existing tests continue to pass
 **And** a new test verifies that the success-case route response schema includes a `worst_station` field (non-null when reachable stations exist)
 **And** a new test verifies that `worst_station` is `null` when `build_recommendation()` returns `worst_station: null`
+
+---
+
+## Epic 5: Conversational Assistant
+
+Olivier can type natural-language messages in a persistent chat panel to plan trips, add waypoints, and filter the map — without ever touching the form. A Google ADK agent backed by Gemini 2.0 Flash runs as a separate service (`localhost:5001`), classifies intent, extracts structured parameters, and returns a normalized `{action, params, message}` response. Flask proxies the exchange through `POST /api/chat`. Trip context is silently injected into the ADK session after each successful route plan so follow-up messages resolve correctly. If the ADK service is unavailable, the form-based workflow is unaffected.
+
+### Story 5.1: ADK Agent Definition & Gemini Client
+
+As a developer,
+I want the Google ADK agent package defined with the four gaz_eye tools and the Gemini 2.0 Flash model configured,
+So that the ADK service process can be started and will correctly classify intent and extract structured parameters from natural-language trip messages.
+
+**Acceptance Criteria:**
+
+**Given** the repository after this story
+**When** I inspect the project structure
+**Then** `agent/__init__.py` exists and exports `root_agent` (the ADK `Agent` instance)
+**And** `agent/agent.py` exists and defines: `SYSTEM_INSTRUCTION` (string constant), four tool functions (`submit_trip`, `add_waypoint`, `filter_stations_by_area`, `clear_filter`), and `root_agent = Agent(name="gaz_eye_assistant", model="gemini-2.0-flash", instruction=SYSTEM_INSTRUCTION, tools=[...])`
+**And** `requirements.txt` includes `google-adk>=1.0`
+
+**Given** `agent/agent.py` is inspected
+**When** the four tool functions are read
+**Then** `submit_trip(origin, destination, range_km=None, waypoints=None)` accepts the four trip parameters and returns `{"ok": True}`
+**And** `add_waypoint(waypoint)` accepts one waypoint string and returns `{"ok": True}`
+**And** `filter_stations_by_area(area_name, lat, lng)` accepts area name and coordinates and returns `{"ok": True}`
+**And** `clear_filter()` accepts no arguments and returns `{"ok": True}`
+**And** all four return `{"ok": True}` — actual action dispatch is the Flask proxy's responsibility, not the tool's
+
+**Given** `SYSTEM_INSTRUCTION` is read
+**When** its content is inspected
+**Then** it includes all five behavioral rules:
+1. Always call a tool when the user's intent clearly matches one of the four actions
+2. If a required field is missing (origin or destination for `submit_trip`), ask one clarifying question — never call `submit_trip` with placeholder or fabricated values
+3. Respond in the same language the user writes in (French or English)
+4. After calling a tool, confirm the action in 1–2 sentences maximum
+5. Do not invent station names, prices, or route details — the agent has no access to live data
+
+**Given** `.env.example` is opened
+**When** the file is read
+**Then** it contains the line `GEMINI_API_KEY=` alongside the existing `GOOGLE_MAPS_API_KEY=`
+
+**Given** `app.py` and `api/routes.py` are inspected
+**When** they are read in full
+**Then** neither file imports from `google.adk`, `google.generativeai`, `agent`, nor reads `GEMINI_API_KEY` from the environment
+**And** `GEMINI_API_KEY` does not appear in any Flask source file — it is the ADK process's exclusive concern
+
+---
+
+### Story 5.2: POST /api/chat Proxy Endpoint
+
+As a developer,
+I want a `POST /api/chat` endpoint in the Flask Blueprint that proxies user messages to the ADK agent service and returns a normalized `{action, params, message}` JSON response,
+So that the frontend has a single, stable contract for all chat interactions regardless of ADK's internal event format.
+
+**Acceptance Criteria:**
+
+**Given** `api/routes.py` is inspected after this story
+**When** the Blueprint routes are read
+**Then** `POST /api/chat` is registered on the Blueprint — zero chat-related code lives in `app.py`
+**And** the handler is a function named `chat_with_agent()` (or similar, `snake_case` verb-prefixed)
+
+**Given** a `POST /api/chat` request with body `{"message": "Montréal to Duhamel, 180 km range", "session_id": "abc-123", "is_context_update": false}`
+**When** the endpoint is called with the ADK service running
+**Then** Flask proxies to `http://localhost:5001/run` using `requests.post` with `timeout=10`
+**And** the ADK request body is:
+```json
+{
+  "app_name": "gaz_eye_assistant",
+  "user_id": "local_user",
+  "session_id": "abc-123",
+  "new_message": {
+    "role": "user",
+    "parts": [{ "text": "Montréal to Duhamel, 180 km range" }]
+  }
+}
+```
+
+**Given** the ADK service responds with an events list containing a `functionCall` part and a `text` part
+**When** Flask normalizes the response
+**Then** it returns HTTP 200 with body:
+```json
+{ "action": "submit_trip", "params": { "origin": "Montréal", "destination": "Duhamel", "range_km": 180, "waypoints": [] }, "message": "Planning Montréal → Duhamel with 180 km range — loading routes." }
+```
+**And** the first `functionCall` part in the events list is used for `action` + `params`
+**And** the last `text` part in the events list is used for `message`
+
+**Given** the ADK service responds with only a `text` part and no `functionCall`
+**When** Flask normalizes the response
+**Then** it returns HTTP 200 with body `{"action": "chat_only", "params": {}, "message": "<assistant text>"}`
+
+**Given** the `action` value from normalization
+**When** the response is returned
+**Then** `action` is one of: `"submit_trip"`, `"add_waypoint"`, `"filter_stations_by_area"`, `"clear_filter"`, `"chat_only"` — never an arbitrary string
+
+**Given** the ADK service is unreachable or the 10-second timeout is exceeded
+**When** `POST /api/chat` is called
+**Then** it returns HTTP 502 with body `{"error": "adk_agent", "message": "Assistant unavailable — use the form to plan your trip."}`
+**And** the form-based `/api/plan` workflow continues to function normally — no shared state between the two endpoints
+
+**Given** `GEMINI_API_KEY` from the environment
+**When** `api/routes.py` is inspected
+**Then** `GEMINI_API_KEY` does not appear anywhere in the file — Flask never reads, forwards, or logs it
+
+---
+
+### Story 5.3: Route Context Injection
+
+As a developer,
+I want `run.sh` updated to launch the ADK service alongside Flask, and `app.js` to silently inject current trip parameters into the ADK session after each successful plan query,
+So that follow-up chat messages like "add a stop through Grenville" resolve correctly against the current trip without the user repeating origin and destination.
+
+**Acceptance Criteria:**
+
+**Given** `run.sh` is opened after this story
+**When** the file is read
+**Then** it starts the ADK agent service with `adk api_server agent --port 5001 &` before starting Flask
+**And** the ADK process PID is stored in a variable (e.g., `ADK_PID=$!`)
+**And** a `trap "kill $ADK_PID 2>/dev/null" EXIT` statement ensures the ADK process is killed when the script exits (Ctrl-C or normal termination)
+**And** Flask is started last with `flask --app app run --debug` (blocking call)
+**And** the existing `.env` loading and `GOOGLE_MAPS_API_KEY` unset warning are preserved unchanged
+
+**Given** `app.js` is inspected
+**When** it processes a successful `POST /api/plan` response
+**Then** immediately after `renderCards()` completes, it fires a silent `POST /api/chat` with:
+```json
+{
+  "message": "[TRIP CONTEXT] origin=\"<origin>\", destination=\"<destination>\", range_km=<range>, waypoints=<json_array>",
+  "session_id": "<current session id from state.sessionId>",
+  "is_context_update": true
+}
+```
+**And** `app.js` does not await or handle the response body of this context update — it is fire-and-forget
+**And** a HTTP 204 or HTTP 502 on the context update does not affect the UI in any way
+
+**Given** `api/routes.py` receives a `POST /api/chat` request with `is_context_update: true`
+**When** the handler processes it
+**Then** it proxies the message to ADK (allowing ADK to append the context turn to session history) and returns HTTP 204 with no response body
+**And** this branch executes regardless of ADK's response content — the 204 is unconditional once ADK acknowledges the call
+
+**Given** the context message format
+**When** `app.js` formats it
+**Then** the message contains **only** origin, destination, range_km, and waypoints — never full route results, station prices, polylines, or drive times (keeps prompt tokens minimal and avoids sending detailed data outside localhost)
+
+**Given** a page reload
+**When** a new session starts
+**Then** `state.js` generates a new `sessionId = crypto.randomUUID()` — the old session's context is lost, which is acceptable for a single-user local tool
+
+---
+
+### Story 5.4: Chat Box Component
+
+As Olivier,
+I want a persistent chat panel in the app where I can type natural-language messages and see the assistant's confirmations,
+So that I can initiate or modify trips conversationally without needing to navigate the form directly.
+
+**Acceptance Criteria:**
+
+**Given** Flask is running and I navigate to `http://localhost:5000`
+**When** the page loads
+**Then** a `#chat-panel` section is visible at all times — it does not hide when a trip is submitted, while results are loading, or after results render
+**And** the chat panel renders as a collapsible bottom section of the left column (cards panel):
+  - Default state: **collapsed** — only the input bar (~48px height) with a chevron handle (▲), a text input (`#chat-input`, placeholder "Ask me to plan a trip…"), and a send button
+  - Expanded state: overlays the cards panel upward, covering up to 60% of available height, showing the message thread (`#chat-messages`, scrollable) above the input bar; chevron points downward (▼)
+**And** clicking the chevron or typing in the collapsed input expands the panel; clicking the chevron in expanded state collapses it
+
+**Given** I type a message and press Enter or click the send button
+**When** the message is submitted
+**Then** my message appears immediately in `#chat-messages` as a right-aligned user bubble (uses `--text-primary` #111827 as background, white text, `border-radius: 12px 12px 0 12px`)
+**And** a typing indicator (three animated dots) appears below the user bubble
+**And** the `#chat-input` is cleared and disabled, the send button is disabled
+
+**Given** the `POST /api/chat` response arrives
+**When** the response is rendered
+**Then** the typing indicator disappears
+**And** the assistant's `message` from the response body appears as a left-aligned assistant bubble (`--surface` white background, `--border` border, `border-radius: 12px 12px 12px 0`)
+**And** `#chat-input` is re-enabled and focused
+
+**Given** the `POST /api/chat` returns HTTP 502
+**When** the error is handled
+**Then** the typing indicator disappears
+**And** an error-styled assistant bubble appears with text "Assistant unavailable — use the form to plan your trip." (red-tinted, `--error` border)
+**And** `#chat-input` is re-enabled — the user can try again
+
+**Given** the chat panel layout on desktop (≥768px)
+**When** I inspect the layout
+**Then** the chat panel sits at the bottom of the left column (cards panel), with the collapsed input bar (~48px) always visible below the route cards
+**And** when expanded, the chat thread overlays the cards panel upward (up to 60% of available height) — cards are still accessible by collapsing the chat
+**And** `#chat-messages` is scrollable and auto-scrolls to the latest message on each new bubble
+
+**Given** the chat panel layout on mobile (<768px)
+**When** I inspect the layout
+**Then** `#chat-panel` renders as a fixed-position bottom bar (`position: fixed; bottom: 0; width: 100%`)
+**And** expanded state slides up covering the map area; cards remain visible and scrollable above
+
+**Given** `style.css` is inspected
+**When** the chat-related rules are read
+**Then** user bubble, assistant bubble, and typing-indicator styles are present
+**And** the typing indicator uses a CSS animation (e.g., `@keyframes bounce`) on three dot elements — no JavaScript-based animation
+
+**Given** `static/js/chat.js` is loaded as an ES module
+**When** its module boundary is inspected
+**Then** it imports `state` from `state.js` (for `sessionId` and `setSelectedRoute`)
+**And** it imports map functions (`filterMarkers`, `restoreMarkers`) from `map.js`
+**And** it does not import from `app.js` — loading state and error banners remain exclusively owned by `app.js`
+
+---
+
+### Story 5.5: Chat State Management & Action Dispatch
+
+As Olivier,
+I want the chat assistant to automatically fill my trip form, add waypoints, and apply map filters based on my natural-language messages,
+So that the chat panel is a fully capable alternative to the form — not just a text display.
+
+**Acceptance Criteria:**
+
+**Given** `state.js` is inspected after this story
+**When** the module is read
+**Then** it exports `sessionId` — a UUID string generated once via `crypto.randomUUID()` when the module is first imported
+**And** `sessionId` is never written to `localStorage` — it lives in memory only; a page reload generates a new UUID
+**And** `state.js` remains the exclusive owner of all `localStorage` access — `chat.js` does not call `localStorage` directly
+
+**Given** `chat.js` receives a response with `action: "submit_trip"` and `params: { origin, destination, range_km, waypoints }`
+**When** the dispatch runs
+**Then** `chat.js` sets the `#origin`, `#destination`, and `#range` form input values from `params`
+**And** each affected form field flashes with `--accent-light` (#DCFCE7) background (200ms ease-in, 800ms hold, 200ms ease-out) to visually bridge the chat action to the form update
+**And** if `params.waypoints` is non-empty, `chat.js` appends the first waypoint to the waypoint input field (respecting the max-1-waypoint MVP rule)
+**And** `chat.js` programmatically submits the trip form (equivalent to clicking "Find routes") — `app.js` loading state activates exactly as if the user had clicked the button
+**And** a brief confirmation toast appears at the bottom of the cards panel in `text-sm` `--text-secondary` style showing the assistant's `message` text; the toast auto-dismisses after 4 seconds
+**And** the route cards and map update with fresh results after the `/api/plan` response arrives
+
+**Given** `chat.js` receives `action: "submit_trip"` but `params.origin` or `params.destination` is null or empty
+**When** the dispatch runs
+**Then** `chat.js` does NOT attempt form fill and does NOT submit `/api/plan`
+**And** the assistant's `message` (a clarifying question from the agent) is displayed in the chat thread — `action: "chat_only"` behaviour applies
+
+**Given** `chat.js` receives `action: "add_waypoint"` and `params: { waypoint: "Grenville" }`
+**When** the dispatch runs
+**Then** `chat.js` appends the waypoint to the trip form's waypoint input (creating it if not present, respecting max-1-waypoint rule)
+**And** the waypoint form field flashes with `--accent-light` (#DCFCE7) background (200ms ease-in, 800ms hold, 200ms ease-out)
+**And** the existing form values for origin, destination, and range are preserved unchanged
+**And** `chat.js` programmatically re-submits the trip form — the route cards and map update with the waypoint-modified route
+**And** a brief confirmation toast appears at the bottom of the cards panel showing the assistant's `message` text; the toast auto-dismisses after 4 seconds
+
+**Given** `chat.js` receives `action: "filter_stations_by_area"` and `params: { area_name, lat, lng }`
+**When** the dispatch runs
+**Then** `chat.js` calls `map.filterMarkers(area_name, lat, lng)` — this is the only action taken; no form submission occurs
+**And** station markers outside a ~25 km radius of `{ lat, lng }` are hidden on the map
+**And** route polylines, route cards, savings recommendations, and best/worst station markers remain completely unchanged
+
+**Given** `map.js` `filterMarkers(area_name, lat, lng)` is called
+**When** the function executes
+**Then** it iterates over all currently rendered station markers and hides any marker whose station's coordinates are more than 25 km from `{ lat, lng }` (Haversine)
+**And** the function stores the set of hidden markers so `restoreMarkers()` can restore exactly those markers
+**And** a filter badge appears top-left on the map container showing `📍 [area_name] · Show all` with a clickable "Show all" link that calls `restoreMarkers()`; badge uses `--surface` background, `--border` border, `text-sm`, `border-radius: 8px`
+
+**Given** `chat.js` receives `action: "clear_filter"` and `params: {}`
+**When** the dispatch runs
+**Then** `chat.js` calls `map.restoreMarkers()`
+**And** all previously hidden station markers become visible again on the map
+**And** the filter badge on the map is removed
+
+**Given** `chat.js` receives `action: "chat_only"` and `params: {}`
+**When** the dispatch runs
+**Then** only the assistant's `message` is displayed in the chat thread
+**And** no form action, no map action, and no `/api/plan` request are triggered
+
+**Given** `map.js` `filterMarkers` and `restoreMarkers` are inspected
+**When** the module is read
+**Then** both functions are exported (`export function filterMarkers(...)` and `export function restoreMarkers()`)
+**And** neither function is defined inline in `index.html` or in any other module — `map.js` module ownership is preserved
+

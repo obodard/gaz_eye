@@ -4,3 +4,4 @@ requests
 pyyaml
 colorama
 polyline
+google-adk>=1.0

@@ -43,7 +43,7 @@ def clear_filter() -> dict:
 
 root_agent = Agent(
     name="gaz_eye_assistant",
-    model="gemini-2.0-flash",
+    model="gemini-2.5-flash-lite",
     instruction=SYSTEM_INSTRUCTION,
     tools=[submit_trip, add_waypoint, filter_stations_by_area, clear_filter],
 )

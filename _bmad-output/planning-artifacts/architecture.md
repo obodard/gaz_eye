@@ -9,15 +9,18 @@ stepsCompleted:
   - step-07-validation
   - step-08-complete
   - update-anomaly-filter-2026-05-01
+  - update-gemini-adk-integration-2026-05-31
 lastStep: 8
 status: 'complete'
 completedAt: '2026-04-30'
-lastUpdated: '2026-05-09'
+lastUpdated: '2026-05-31'
 updateHistory:
   - date: '2026-05-01'
     changes: 'Added anomaly detection (FR38-FR42): detect_stale_prices() in api/pricing.py, updated data flow, directory structure, requirements mapping, gap analysis (gaps 4-6: filter order, stations.yaml schema, ANOMALY_THRESHOLD_CAD constant), validation FR count 35→42'
   - date: '2026-05-09'
     changes: 'Extended Epic 4 (FR43–FR47): bidirectional anomaly detection (expensive direction), worst_station field in /api/plan route object, red AdvancedMarkerElement map marker for most expensive reachable station; FR count 42→47; updated data flow, requirements mapping, validation spot-checks, gap analysis gaps 4+6'
+  - date: '2026-05-31'
+    changes: 'Epic 5 Gemini/ADK integration (FR48–FR66): deployment model (separate ADK service port 5001), GEMINI_API_KEY handling, gemini-2.0-flash model selection, non-streaming /run endpoint, request/response shapes (frontend↔Flask↔ADK), agent definition & system instruction, route context injection protocol, agent/ directory, updated run.sh, requirements mapping, validation spot-checks; FR count 47→66'
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/product-brief-gaz_eye.md
@@ -41,7 +44,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 ### Requirements Overview
 
-**Functional Requirements:** 47 FRs across seven domains:
+**Functional Requirements:** 66 FRs across eight domains:
 - Trip Input (FR1–FR6): origin, destination, range, optional waypoints
 - Route Discovery (FR7–FR10): Google Maps Directions API integration, polyline decoding
 - Station Discovery (FR11–FR15): Régie Essence GeoJSON fetch, corridor matching (Haversine), fuel type filtering
@@ -49,6 +52,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - Autonomy Filtering (FR16–FR18): distance-to-station calculation, safety buffer enforcement
 - Recommendation Engine (FR19–FR23): cheapest/worst station per route, per-litre and per-tank savings, route ranking
 - Map & Display (FR24–FR30, FR46–FR47): interactive Google Maps JS rendering, bi-directional card/map sync, data freshness indicator, distinct red marker for most expensive reachable station per route
+- Conversational Assistant (FR48–FR66): Gemini-powered chat panel, natural-language trip initiation, waypoint addition, geographic station filtering, Google ADK agent as separate service, `/api/chat` Flask proxy
 
 **Non-Functional Requirements:**
 - **Performance:** Full pipeline (API + compute + render) completes within a few seconds
@@ -156,17 +160,22 @@ creating `app.py`) should be the first implementation story.
 ### Authentication & Security
 
 - **No authentication.** Single-user local tool on `localhost`. No login, no sessions, no CSRF surface.
-- **API key isolation:** `GOOGLE_MAPS_API_KEY` loaded from environment variable at Flask startup. Loaded via `python-dotenv` from a `.env` file listed in `.gitignore`. Key is **never** included in any JSON response or frontend-accessible route.
-- **No CORS configuration needed** — frontend and backend share the same Flask origin (`localhost:5000`).
+- **API key isolation — Google Maps:** `GOOGLE_MAPS_API_KEY` loaded from environment variable at Flask startup. Loaded via `python-dotenv` from a `.env` file listed in `.gitignore`. Key is **never** included in any JSON response or frontend-accessible route.
+- **API key isolation — Gemini:** `GEMINI_API_KEY` follows the identical pattern. Consumed exclusively by the ADK agent process — Flask never reads, forwards, or logs it. See §Gemini API & ADK Integration for the full key-handling specification.
+- **No CORS configuration needed** — frontend, Flask backend, and ADK agent all share `localhost`.
 
 ### API & Communication Patterns
 
-- **Single endpoint:** `POST /api/plan`
+- **Trip planning endpoint:** `POST /api/plan`
   - Request body: `{ origin, destination, range_km, waypoints[], fuel_type, corridor_km, buffer_km }`
-  - Response: `{ routes: [{ label, drive_time, polyline, stations: [...], best_station, savings_per_litre, savings_per_tank }], data_timestamp, error? }`
-- **Hard fail policy:** If Google Maps Directions API fails OR Régie Essence GeoJSON fetch fails, the endpoint returns HTTP 502 with a structured error body `{ error: "source", message: "..." }`. Rationale: without live pricing, route cost comparison has no value.
+  - Response: `{ routes: [{ label, drive_time, polyline, stations: [...], best_station, worst_station, savings_per_litre, savings_per_tank }], data_timestamp, error? }`
+- **Chat proxy endpoint:** `POST /api/chat`
+  - Request body: `{ message, session_id, is_context_update? }`
+  - Response: `{ action, params, message }` — see §Gemini API & ADK Integration for full schema.
+  - Proxies to ADK agent service on `localhost:5001`; returns HTTP 502 on ADK/Gemini failure. Form-based workflow remains unaffected.
+- **Hard fail policy:** If Google Maps Directions API fails OR Régie Essence GeoJSON fetch fails, `/api/plan` returns HTTP 502 with a structured error body `{ error: "source", message: "..." }`. Rationale: without live pricing, route cost comparison has no value. Chat endpoint follows the same pattern: ADK unreachable → 502 with `{ error: "adk_agent", ... }`.
 - **Static file serving:** Flask root route (`GET /`) serves `static/index.html`. All other static assets served from `/static/`.
-- **Error response schema:** `{ error: "google_maps" | "regie_essence" | "internal", message: string }`
+- **Error response schema:** `{ error: "google_maps" | "regie_essence" | "adk_agent" | "internal", message: string }`
 
 ### Frontend Architecture
 
@@ -181,7 +190,7 @@ creating `app.py`) should be the first implementation story.
 
 ### Infrastructure & Deployment
 
-- **Launch:** `run.sh` — sets `FLASK_APP=app.py`, `FLASK_ENV=development`, loads `.env` if present, then executes `flask run`. Single command for the developer.
+- **Launch:** `run.sh` — loads `.env`, starts the ADK agent service (`adk api_server agent --port 5001`) in the background with a `trap EXIT` kill, then starts Flask (`flask --app app run --debug`). Single command launches both processes. The ADK process PID is stored for clean teardown on Ctrl-C.
 - **No CI/CD.** Personal local tool.
 - **Logging:** Follows project context rule — `logging.Logger` with `StreamHandler(sys.stdout)`, `%(message)s` format. Flask access logs suppressed or minimal.
 - **`.gitignore` additions:** `.env`, `__pycache__/`, `*.pyc`
@@ -361,34 +370,45 @@ Never defined inline in `index.html` script tags.
 
 ```
 gaz_eye/
-├── .env                          # GOOGLE_MAPS_API_KEY (gitignored)
+├── .env                          # GOOGLE_MAPS_API_KEY, GEMINI_API_KEY (gitignored)
 ├── .env.example                  # Template with key names, empty values
 ├── .gitignore                    # .env, __pycache__/, *.pyc
 ├── README.md
-├── requirements.txt              # flask==3.1.3, python-dotenv, requests, pyyaml, colorama
-├── run.sh                        # Launch script: loads .env, runs flask --app app run --debug
+├── requirements.txt              # flask==3.1.3, python-dotenv, requests, pyyaml, colorama, google-adk>=1.0
+├── run.sh                        # Launch script: loads .env, starts ADK agent (port 5001) + Flask (port 5000)
 ├── stations.yaml                 # Preserved (existing CLI)
 ├── gaz_saver.py                  # Preserved (existing CLI)
 ├── app.py                        # Flask app factory: creates app, registers Blueprint
+├── agent/                        # Google ADK agent package
+│   ├── __init__.py              # exports root_agent for `adk api_server`
+│   └── agent.py                 # Agent: system instruction, tool definitions (submit_trip,
+│                             #   add_waypoint, filter_stations_by_area, clear_filter)
 ├── api/
 │   ├── __init__.py
-│   ├── routes.py                 # Blueprint; POST /api/plan
+│   ├── routes.py                 # Blueprint; POST /api/plan, POST /api/chat
 │   ├── pricing.py                # fetch_stations, parse_price_value, detect_stale_prices,
 │   │                             # filter_by_autonomy, build_recommendation — ported from
 │   │                             # gaz_saver.py + anomaly detection (net-new)
 │   └── geo.py                    # decode_polyline, haversine, find_stations_in_corridor,
 │                                 # distance_along_route
 ├── static/
-│   ├── index.html                # SPA shell: form, #route-cards, #error-banner, map container
+│   ├── index.html                # SPA shell: form, #route-cards, #error-banner, map container,
+│   │                             # #chat-panel (collapsible bottom of left column)
 │   ├── css/
-│   │   └── style.css             # Layout, card styles, loading overlay, map container
+│   │   └── style.css             # Layout, card styles, loading overlay, map container, chat panel,
+│   │                             # chat bubbles, typing indicator, filter badge, form field flash
 │   └── js/
 │       ├── app.js            # Entry point: form submit, fetch /api/plan, renderCards(),
-│       │                         # loading state (is-loading), error display (#error-banner)
+│       │                         # loading state (is-loading), error display (#error-banner),
+│       │                         # context update on trip load (POST /api/chat is_context_update)
 │       ├── map.js            # Google Maps JS API: initMap(), renderRoutes(), renderMarkers(),
+│       │                         # filterMarkers(area), restoreMarkers(), filter badge,
 │       │                         # window.initMap = initMap
-│       └── state.js          # Singleton: DEFAULT_SETTINGS, SETTINGS_KEY, state object,
-│                                 # setSelectedRoute(), loadSettings(), saveSettings()
+│       ├── state.js          # Singleton: DEFAULT_SETTINGS, SETTINGS_KEY, state object,
+│       │                         # setSelectedRoute(), loadSettings(), saveSettings(),
+│       │                         # sessionId (UUID, in-memory only)
+│       └── chat.js           # Chat panel: collapse/expand, input handling, POST /api/chat,
+│                                 # action dispatch, form field flash, action confirmation toasts
 └── tests/
     ├── __init__.py
     ├── test_pricing.py           # Unit tests: parse_price_value(), filter_by_autonomy(),
@@ -401,14 +421,16 @@ gaz_eye/
 ### Architectural Boundaries
 
 **Module responsibilities (enforced):**
-- `api/routes.py` — HTTP layer only; calls `pricing.py` and `geo.py`
+- `api/routes.py` — HTTP layer only; calls `pricing.py` and `geo.py`; proxies `/api/chat` to ADK
 - `api/pricing.py` — GeoJSON fetch, price parsing, anomaly filter, autonomy filter, recommendation builder
 - `api/geo.py` — polyline decode, Haversine, corridor matching
-- `app.js` — owns loading state (`is-loading`) and error display (`#error-banner`)
-- `state.js` — owns all `localStorage` access and route selection state
-- `map.js` — owns Google Maps instance and all map rendering
+- `agent/agent.py` — ADK agent definition: system instruction, tool registrations (`submit_trip`, `add_waypoint`, `filter_stations_by_area`, `clear_filter`); no Flask or pricing logic
+- `app.js` — owns loading state (`is-loading`), error display (`#error-banner`), and trip context updates (fires silent `POST /api/chat` with `is_context_update: true` after each `/api/plan` success)
+- `chat.js` — owns chat panel: input events, collapse/expand toggle, `POST /api/chat`, action dispatch to `state.js` / `map.js`, form field flash animation, action confirmation toasts
+- `state.js` — owns all `localStorage` access, route selection state, and `sessionId` (in-memory UUID)
+- `map.js` — owns Google Maps instance, all map rendering, `filterMarkers()`, `restoreMarkers()`, filter badge creation/removal
 
-**Data flow:**
+**Data flow — trip planning:**
 ```
 form submit → POST /api/plan → [Google Maps API + Régie Essence GeoJSON]
   → geo.py (decode + corridor)
@@ -418,6 +440,23 @@ form submit → POST /api/plan → [Google Maps API + Régie Essence GeoJSON]
   → JSON response → app.js renderCards() → state.setSelectedRoute(0)
   → CustomEvent("routeSelected") → map.js renderRoutes() + renderMarkers()
   → map.js renders worst_station as red AdvancedMarkerElement (--error: #DC2626)
+  → app.js fires silent POST /api/chat {is_context_update: true, trip params}
+```
+
+**Data flow — chat (conversational assistant):**
+```
+chat.js user input → POST /api/chat {message, session_id}
+  → api/routes.py proxy → POST http://localhost:5001/run (ADK agent)
+  → ADK → Gemini API (gemini-2.0-flash) function-calling
+  → ADK returns events list → Flask normalizes to {action, params, message}
+  → chat.js dispatches action:
+      submit_trip        → flash form fields (--accent-light) + fills form + submits POST /api/plan
+                           → toast confirmation at bottom of cards panel (4s auto-dismiss)
+      add_waypoint       → flash waypoint field + appends waypoint + re-submits POST /api/plan
+                           → toast confirmation at bottom of cards panel (4s auto-dismiss)
+      filter_stations_by_area → map.js filterMarkers(area) + show filter badge on map
+      clear_filter       → map.js restoreMarkers() + remove filter badge
+      chat_only          → displays message in chat panel only
 ```
 
 ### Requirements to Structure Mapping
@@ -434,6 +473,11 @@ form submit → POST /api/plan → [Google Maps API + Régie Essence GeoJSON]
 | FR19–FR23 Recommendation Engine | `api/pricing.py` |
 | FR24–FR27 Map Visualization | `static/js/map.js` |
 | FR28–FR30 Recommendation Display | `static/js/app.js` |
+| FR48–FR50 Chat UI | `static/index.html`, `static/js/chat.js` |
+| FR51–FR53 NL Trip Initiation | `agent/agent.py` (submit_trip tool), `static/js/chat.js` |
+| FR54–FR56 NL Waypoint Addition | `agent/agent.py` (add_waypoint tool), `static/js/chat.js` |
+| FR57–FR60 NL Map Filtering | `agent/agent.py` (filter_stations_by_area, clear_filter tools), `static/js/chat.js`, `static/js/map.js` |
+| FR61–FR66 ADK Agent Integration | `agent/agent.py`, `api/routes.py` (`/api/chat`), `static/js/chat.js` |
 | Settings persistence | `static/js/state.js` |
 
 ### Integration Points
@@ -442,11 +486,268 @@ form submit → POST /api/plan → [Google Maps API + Régie Essence GeoJSON]
 - Google Maps Directions API — called from `api/routes.py`, key from `GOOGLE_MAPS_API_KEY` env var
 - Google Maps JavaScript API — loaded via CDN `<script>` in `index.html`, callback `window.initMap`
 - Régie Essence GeoJSON endpoint — called from `api/pricing.py`, User-Agent header required
+- Gemini API — called by the ADK agent process via `google-adk`/`google-genai`; key from `GEMINI_API_KEY` env var; model `gemini-2.0-flash`; non-streaming (`/run` endpoint); never called directly by Flask
+- Google ADK agent service — Flask proxies `POST /api/chat` to `http://localhost:5001/run` via `requests`
 
 **Internal communication:**
 - Backend modules communicate via direct Python function calls
 - Frontend modules communicate via `state.setSelectedRoute()` + `CustomEvent("routeSelected")`
 - `app.js` → `state.js` and `map.js` via ES module imports + custom events
+
+## Gemini API & ADK Integration
+
+_Added 2026-05-31. Covers Epic 5 (Conversational Assistant): FR48–FR66._
+
+### Deployment Model: Separate ADK Service
+
+The Google ADK agent runs as a **separate process** on `localhost:5001`, distinct from Flask on port 5000.
+
+**Rationale:**
+- ADK manages its own session state and conversation memory. Embedding it inside Flask's WSGI process introduces shared-state complexity with no benefit.
+- ADK ships `adk api_server` — a production-ready FastAPI HTTP server. There is no reason to fight its process model.
+- If the ADK process crashes or becomes slow, Flask continues serving the form-based workflow uninterrupted (natural graceful degradation for NFR12).
+
+**Trade-off accepted:** Two processes to launch instead of one. Mitigated by updating `run.sh` to start both in parallel with a clean `trap EXIT` teardown.
+
+**`run.sh` (updated):**
+```bash
+#!/bin/bash
+set -e
+
+[ -f .env ] && export $(grep -v '^#' .env | xargs)
+
+# Start ADK agent in background; kill it when this script exits
+adk api_server agent --port 5001 &
+ADK_PID=$!
+trap "kill $ADK_PID 2>/dev/null" EXIT
+
+# Start Flask (blocks until Ctrl-C)
+flask --app app run --debug
+```
+
+### API Key Handling
+
+`GEMINI_API_KEY` follows the **identical isolation pattern** as `GOOGLE_MAPS_API_KEY`:
+
+- Stored in `.env` (gitignored), loaded at ADK process start via `python-dotenv` / `os.environ`
+- Consumed exclusively by the `agent/` process — Flask never reads, forwards, or logs it
+- Never appears in any HTTP response, log line, or client-side source
+
+`.env.example` additions:
+```
+GOOGLE_MAPS_API_KEY=
+GEMINI_API_KEY=
+```
+
+The ADK agent picks up `GEMINI_API_KEY` automatically when instantiated with `google-genai` as its backend; no explicit key-passing in application code.
+
+### Model Selection
+
+**Decision: `gemini-2.0-flash`**
+
+| Candidate | Verdict | Reasoning |
+|---|---|---|
+| `gemini-2.0-flash` | ✅ Selected | Fast (~1–2 s), strong function-calling, cheapest at this capability tier. The 4-tool intent classifier is simple structured extraction — Flash is well-matched. |
+| `gemini-1.5-pro` | ❌ Rejected | Higher latency and cost with no capability advantage for this narrow task. |
+| `gemini-2.5-pro` | ❌ Rejected | Reasoning-optimized; slower and overkill for structured extraction over 4 tools. |
+
+NFR12 requires ≤5 s total round-trip. `gemini-2.0-flash` contributes ~1–2 s, leaving comfortable budget for ADK session overhead and the Flask proxy hop.
+
+### Streaming vs. Non-Streaming
+
+**Decision: non-streaming (`POST /run`, not `POST /run_sse`)**
+
+The frontend cannot dispatch any UI action (`submit_trip`, `add_waypoint`, etc.) until it has the **complete** `action` + `params` object. Partial SSE events carry no incremental value for action dispatch — the action type and all extracted parameters must arrive atomically.
+
+Streaming would only benefit scenarios where prose is rendered word-by-word. Here, chat responses are brief confirmations (1–2 sentences) that appear after the action fires. A spinner in the chat panel covers the perceived wait without requiring a streaming connection.
+
+### Request / Response Shapes
+
+#### 1. Frontend → Flask `POST /api/chat`
+
+```json
+{
+  "message": "Montréal to Duhamel, 180 km range",
+  "session_id": "a1b2c3d4-e5f6-...",
+  "is_context_update": false
+}
+```
+
+`session_id` is a UUID generated in `state.js` (`crypto.randomUUID()`) when the chat panel is first opened. It lives **in memory only** — not in `localStorage`. A page reload starts a fresh session; context loss is acceptable for a single-user local tool.
+
+`is_context_update: true` is set by `app.js` after a successful `/api/plan` call to inject the current trip parameters into the ADK session silently (no response needed by the frontend).
+
+#### 2. Flask → ADK `POST http://localhost:5001/run`
+
+Flask proxies using `requests.post` (10 s hard timeout — hard abort prevents hung requests against the 5 s NFR12 budget):
+
+```json
+{
+  "app_name": "gaz_eye_assistant",
+  "user_id": "local_user",
+  "session_id": "a1b2c3d4-e5f6-...",
+  "new_message": {
+    "role": "user",
+    "parts": [{ "text": "Montréal to Duhamel, 180 km range" }]
+  }
+}
+```
+
+#### 3. ADK → Flask (raw events list)
+
+ADK `/run` returns a synchronous list of agent turn events:
+
+```json
+[
+  {
+    "content": {
+      "role": "model",
+      "parts": [{ "functionCall": { "name": "submit_trip",
+                                    "args": { "origin": "Montréal",
+                                              "destination": "Duhamel",
+                                              "range_km": 180,
+                                              "waypoints": [] } } }]
+    }
+  },
+  {
+    "content": {
+      "role": "model",
+      "parts": [{ "text": "Planning Montréal → Duhamel with 180 km range — loading routes." }]
+    }
+  }
+]
+```
+
+Flask normalizes: extracts the first `functionCall` part (if present) and the last `text` part.
+
+#### 4. Flask → Frontend (normalized response)
+
+```json
+{
+  "action": "submit_trip",
+  "params": { "origin": "Montréal", "destination": "Duhamel", "range_km": 180, "waypoints": [] },
+  "message": "Planning Montréal → Duhamel with 180 km range — loading routes."
+}
+```
+
+**`action` dispatch table:**
+
+| `action` | `params` shape | Frontend behaviour |
+|---|---|---|
+| `submit_trip` | `{ origin, destination, range_km, waypoints[] }` | `chat.js` auto-fills form + submits `POST /api/plan` |
+| `add_waypoint` | `{ waypoint: string }` | `chat.js` appends waypoint + re-submits `POST /api/plan` |
+| `filter_stations_by_area` | `{ area_name, lat, lng }` | `chat.js` → `map.js filterMarkers(area)` |
+| `clear_filter` | `{}` | `chat.js` → `map.js restoreMarkers()` |
+| `chat_only` | `{}` | Display `message` in chat panel only (clarification / error) |
+
+**`/api/chat` error response** (ADK unreachable or 10 s timeout exceeded):
+```json
+{ "error": "adk_agent", "message": "Assistant unavailable — use the form to plan your trip." }
+```
+HTTP 502. Form-based workflow is unaffected.
+
+### Agent Definition
+
+The ADK agent package lives at `agent/`:
+
+```python
+# agent/agent.py
+from google.adk.agents import Agent
+from google.adk.tools import FunctionTool
+from typing import Optional
+
+SYSTEM_INSTRUCTION = """
+You are the Gaz Eye trip assistant. You help users plan fuel-efficient road trips in Quebec.
+
+You have four tools:
+- submit_trip: call when the user describes a new trip (origin, destination, optional range and waypoints)
+- add_waypoint: call when the user wants to add an intermediate stop to the current trip
+- filter_stations_by_area: call when the user wants to see only station prices near a specific location
+- clear_filter: call when the user wants to restore all station markers on the map
+
+Rules:
+1. Always call a tool when the user's intent clearly matches one of these actions.
+2. If a required field is missing (origin or destination for submit_trip), ask one clarifying
+   question — never call submit_trip with placeholder values.
+3. Respond in the same language the user writes in (French or English).
+4. After calling a tool, confirm the action in 1–2 sentences maximum.
+5. Do not invent station names, prices, or route details — you have no access to live data.
+"""
+
+def submit_trip(origin: str, destination: str,
+                range_km: Optional[float] = None,
+                waypoints: Optional[list[str]] = None) -> dict:
+    """Extract trip parameters from natural language."""
+    return {"ok": True}
+
+def add_waypoint(waypoint: str) -> dict:
+    """Extract a waypoint location name to append to the current trip."""
+    return {"ok": True}
+
+def filter_stations_by_area(area_name: str, lat: float, lng: float) -> dict:
+    """Extract a geographic area for station marker filtering."""
+    return {"ok": True}
+
+def clear_filter() -> dict:
+    """Signal the frontend to restore all station markers."""
+    return {"ok": True}
+
+root_agent = Agent(
+    name="gaz_eye_assistant",
+    model="gemini-2.0-flash",
+    instruction=SYSTEM_INSTRUCTION,
+    tools=[submit_trip, add_waypoint, filter_stations_by_area, clear_filter],
+)
+```
+
+Tools return `{"ok": True}` — actual action dispatch is the Flask proxy's responsibility, not the tool's.
+
+### Route Context Injection
+
+ADK sessions maintain conversation history natively (satisfies FR66). The current trip state is injected via a **synthetic context message** — not by mutating the system instruction at runtime (which ADK does not support per-session).
+
+**Protocol:**
+
+1. After `app.js` receives a successful `/api/plan` response, it fires a silent `POST /api/chat` with `is_context_update: true`:
+   ```json
+   {
+     "message": "[TRIP CONTEXT] origin=\"Montréal, QC\", destination=\"Duhamel, QC\", range_km=180, waypoints=[]",
+     "session_id": "a1b2c3d4-...",
+     "is_context_update": true
+   }
+   ```
+2. `api/routes.py` detects `is_context_update: true`, proxies to ADK, and **returns HTTP 204** — no body, no frontend UI update. The context message is silent from the user's perspective.
+3. ADK appends the context turn to the session history. Subsequent user messages ("add a stop through Grenville") resolve correctly against it.
+
+**What is NOT injected:** Full route results (station prices, polylines, drive times) are never sent to the agent. The agent only needs origin/destination/range/waypoints for intent resolution — not the full result set. This keeps prompt tokens low and avoids sending detailed routing data outside the local machine.
+
+**Session lifecycle:** A new `session_id` is generated on page load. If the user starts a second trip, `app.js` fires another context update on the same session — the history accumulates, which is intentional (it gives the agent the "current trip" context). If session history grows problematically long in a single tab session, ADK's context window limits apply naturally.
+
+### New Dependencies
+
+```
+# requirements.txt additions
+google-adk>=1.0
+```
+
+`google-adk` brings `google-genai` as a transitive dependency. No separate Gemini SDK package is needed.
+
+### New Anti-Patterns
+
+**All AI agents implementing Epic 5 MUST:**
+- Define the ADK `root_agent` only in `agent/agent.py` — never inline agent initialization elsewhere
+- Never read `GEMINI_API_KEY` in Flask — it is the ADK process's exclusive concern
+- Never call `generativelanguage.googleapis.com` directly from Flask — route through the ADK service
+- Never stream from `/api/chat` (`run_sse`) — use non-streaming `/run` exclusively
+- Never expose `session_id` management in `app.js` — it belongs to `state.js`
+- Never send full station/price/route data in the context update message — trip parameters only
+
+**Anti-patterns to avoid:**
+- ❌ `import google.generativeai` in `api/routes.py`
+- ❌ `GEMINI_API_KEY` read inside `app.py` or `api/routes.py`
+- ❌ Streaming (`/run_sse`) for the chat proxy
+- ❌ `window.sessionId = ...` inline in `index.html`
+- ❌ Injecting full `/api/plan` response body into the ADK context message
 
 ## Architecture Validation Results
 
@@ -498,6 +799,28 @@ Spot-checks on hardest FRs:
 
 **Non-Functional Requirements:**
 - Performance: single `/api/plan` endpoint; GeoJSON fetched once per request, filtered in-memory
+- NFR12 (chat ≤5 s): `gemini-2.0-flash` contributes ~1–2 s; 10 s hard abort in Flask proxy prevents hangs
+- NFR13 (single launch command): `run.sh` starts both Flask and ADK agent with one command
+- NFR14 (Gemini key isolation): `GEMINI_API_KEY` consumed by ADK process only — confirmed in §Gemini API & ADK Integration
+
+**Functional Requirements (66 FRs) — all covered.**
+
+Spot-checks on hardest FRs (Epic 5):
+
+| FR | Coverage |
+|---|---|
+| FR48 — persistent chat panel | `static/index.html` `#chat-panel`; `static/js/chat.js` |
+| FR51 — NL trip extraction | `agent/agent.py` `submit_trip` tool; Gemini function-calling |
+| FR52 — auto-fill + submit on extraction | `chat.js` receives `action: "submit_trip"`, fills form, fires `POST /api/plan` |
+| FR53 — clarify on missing required field | System instruction rule 2: ask one clarifying question before calling `submit_trip` with missing origin/destination |
+| FR54–FR56 — waypoint addition via chat | `agent/agent.py` `add_waypoint` tool; `chat.js` appends + re-submits; works from form or chat origin |
+| FR57–FR60 — geographic map filter + clear | `agent/agent.py` `filter_stations_by_area` / `clear_filter` tools; `chat.js` → `map.js filterMarkers()` / `restoreMarkers()`; route cards unchanged |
+| FR61 — ADK as separate service | `agent/` package; `adk api_server agent --port 5001` in `run.sh` |
+| FR62 — `/api/chat` Flask proxy | `api/routes.py` `chat_proxy()` → `requests.post("http://localhost:5001/run", ...)` |
+| FR63 — Gemini for NLU | `agent/agent.py` `root_agent` with `model="gemini-2.0-flash"` |
+| FR64 — 4 structured tools | `submit_trip`, `add_waypoint`, `filter_stations_by_area`, `clear_filter` defined in `agent/agent.py` |
+| FR65 — `{action, params, message}` response | Flask normalizes ADK events list in `chat_proxy()` before returning |
+| FR66 — session context for follow-ups | ADK session maintains history; trip context injected via synthetic `[TRIP CONTEXT]` message after each `/api/plan` success |
 - Accuracy: `parse_price_value()` reused verbatim from battle-tested `gaz_saver.py`
 - Safety: `filter_by_autonomy()` gates all recommendations — no out-of-range station can reach `build_recommendation()`
 - API key security: key never leaves `api/routes.py`; no frontend route exposes it

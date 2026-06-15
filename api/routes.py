@@ -26,7 +26,12 @@ bp = Blueprint("api", __name__)
 logger = logging.getLogger("gaz_eye.routes")
 
 DIRECTIONS_URL = "https://maps.googleapis.com/maps/api/directions/json"
+ADK_SERVICE_URL = "http://localhost:5001"
 _CONFIG_PATH = Path(__file__).parent.parent / "stations.yaml"
+
+ALLOWED_ACTIONS = frozenset({
+    "submit_trip", "add_waypoint", "filter_stations_by_area", "clear_filter", "chat_only",
+})
 
 
 def _format_drive_time(seconds: int) -> str:
@@ -192,3 +197,96 @@ def plan():
     rank_routes(routes)
 
     return jsonify({"routes": routes, "data_timestamp": data_timestamp}), 200
+
+
+def _normalize_adk_response(adk_json) -> dict:
+    """Extract action, params, and message from ADK events list.
+    
+    Handles both formats:
+    - Dict with "events" key: {"events": [...]}
+    - List directly: [...]
+    """
+    action = None
+    params = {}
+    message = ""
+
+    # Handle both list and dict responses from ADK
+    events = adk_json if isinstance(adk_json, list) else adk_json.get("events", []) if isinstance(adk_json, dict) else []
+
+    for event in events:
+        for part in (event.get("content") or {}).get("parts", []):
+            if "functionCall" in part and action is None:
+                action = part["functionCall"].get("name")
+                params = part["functionCall"].get("args", {})
+            if "text" in part:
+                message = part["text"]
+
+    if action is None or action not in ALLOWED_ACTIONS:
+        action = "chat_only"
+        params = {}
+
+    return {"action": action, "params": params, "message": message}
+
+
+@bp.route("/api/chat", methods=["POST"])
+def chat_with_agent():
+    """Proxy user messages to the ADK agent service and return normalized response."""
+    body = request.get_json(silent=True) or {}
+    user_message = body.get("message", "")
+    session_id = body.get("session_id", "default")
+    is_context_update = body.get("is_context_update") is True
+
+    # Create session if it doesn't exist
+    session_creation_url = f"{ADK_SERVICE_URL}/apps/agent/users/local_user/sessions/{session_id}"
+    try:
+        requests.post(
+            session_creation_url,
+            json={},
+            timeout=5,
+        )
+    except (requests.ConnectionError, requests.Timeout):
+        pass  # Session might already exist or service unavailable; /run will handle it
+
+    adk_payload = {
+        "appName": "agent",
+        "userId": "local_user",
+        "sessionId": session_id,
+        "newMessage": {
+            "role": "user",
+            "parts": [{"text": user_message}],
+        },
+    }
+
+    try:
+        adk_resp = requests.post(
+            f"{ADK_SERVICE_URL}/run",
+            json=adk_payload,
+            timeout=10,
+        )
+    except (requests.ConnectionError, requests.Timeout):
+        if is_context_update:
+            return "", 204
+        return jsonify({
+            "error": "adk_agent",
+            "message": "Assistant unavailable — use the form to plan your trip.",
+        }), 502
+
+    if is_context_update:
+        return "", 204
+
+    if not adk_resp.ok:
+        return jsonify({
+            "error": "adk_agent",
+            "message": "Assistant unavailable — use the form to plan your trip.",
+        }), 502
+
+    try:
+        adk_json = adk_resp.json()
+    except ValueError:
+        return jsonify({
+            "error": "adk_agent",
+            "message": "Assistant unavailable — use the form to plan your trip.",
+        }), 502
+
+    normalized = _normalize_adk_response(adk_json)
+    return jsonify(normalized), 200
