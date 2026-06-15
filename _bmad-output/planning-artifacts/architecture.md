@@ -10,10 +10,11 @@ stepsCompleted:
   - step-08-complete
   - update-anomaly-filter-2026-05-01
   - update-gemini-adk-integration-2026-05-31
+  - update-review-findings-2026-06-15
 lastStep: 8
 status: 'complete'
 completedAt: '2026-04-30'
-lastUpdated: '2026-05-31'
+lastUpdated: '2026-06-15'
 updateHistory:
   - date: '2026-05-01'
     changes: 'Added anomaly detection (FR38-FR42): detect_stale_prices() in api/pricing.py, updated data flow, directory structure, requirements mapping, gap analysis (gaps 4-6: filter order, stations.yaml schema, ANOMALY_THRESHOLD_CAD constant), validation FR count 35→42'
@@ -21,6 +22,8 @@ updateHistory:
     changes: 'Extended Epic 4 (FR43–FR47): bidirectional anomaly detection (expensive direction), worst_station field in /api/plan route object, red AdvancedMarkerElement map marker for most expensive reachable station; FR count 42→47; updated data flow, requirements mapping, validation spot-checks, gap analysis gaps 4+6'
   - date: '2026-05-31'
     changes: 'Epic 5 Gemini/ADK integration (FR48–FR66): deployment model (separate ADK service port 5001), GEMINI_API_KEY handling, gemini-2.0-flash model selection, non-streaming /run endpoint, request/response shapes (frontend↔Flask↔ADK), agent definition & system instruction, route context injection protocol, agent/ directory, updated run.sh, requirements mapping, validation spot-checks; FR count 47→66'
+  - date: '2026-06-15'
+    changes: 'Absorbed architecture-review-2026-05-31 (Winston): added health scorecard, backend/frontend/cross-cutting findings with severity, tiered recommendations (§8), architectural decision on mapping vs ADK pattern (§3), critical issues list, anti-pattern note on three-place action duplication (§4)'
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/product-brief-gaz_eye.md
@@ -38,7 +41,18 @@ date: '2026-04-30'
 
 # Architecture Decision Document
 
-_This document builds collaboratively through step-by-step discovery. Sections are appended as we work through each architectural decision together._
+_gaz_eye is a locally-hosted, single-user Flask + Vanilla JS web application that recommends fuel-efficient road trips across Quebec by combining Google Maps routing with live Régie Essence pricing data and a Gemini-powered conversational assistant. This document records all architectural decisions, module boundaries, naming conventions, data flows, and implementation constraints for the project. It covers 66 functional requirements across Epics 1–5, and incorporates health findings and tiered recommendations from the 2026-05-31 architecture review (§8). Last updated 2026-06-15._
+
+## Table of Contents
+
+1. [Project Context Analysis](#project-context-analysis)
+2. [Stack & Technology Selection](#stack--technology-selection)
+3. [Core Architectural Decisions](#core-architectural-decisions)
+4. [Implementation Patterns & Consistency Rules](#implementation-patterns--consistency-rules)
+5. [Project Structure & Boundaries](#project-structure--boundaries)
+6. [Gemini API & ADK Integration](#gemini-api--adk-integration)
+7. [Architecture Validation Results](#architecture-validation-results)
+8. [Architecture Review Findings & Recommendations](#architecture-review-findings--recommendations)
 
 ## Project Context Analysis
 
@@ -83,7 +97,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - **Map ↔ card sync** — selecting a route card must highlight that route on the map, and vice versa; this is the primary frontend state management challenge.
 - **Data freshness transparency** — the GeoJSON `generated_at` timestamp must be surfaced in the UI so the user can assess price staleness.
 
-## Starter Template Evaluation
+## Stack & Technology Selection
 
 ### Primary Technology Domain
 
@@ -168,7 +182,7 @@ creating `app.py`) should be the first implementation story.
 
 - **Trip planning endpoint:** `POST /api/plan`
   - Request body: `{ origin, destination, range_km, waypoints[], fuel_type, corridor_km, buffer_km }`
-  - Response: `{ routes: [{ label, drive_time, polyline, stations: [...], best_station, worst_station, savings_per_litre, savings_per_tank }], data_timestamp, error? }`
+  - Response: `{ routes: [{ label, drive_time, polyline, stations: [...], best_station, worst_station, savings_per_litre, savings_per_tank_cad }], data_timestamp, error? }`
 - **Chat proxy endpoint:** `POST /api/chat`
   - Request body: `{ message, session_id, is_context_update? }`
   - Response: `{ action, params, message }` — see §Gemini API & ADK Integration for full schema.
@@ -187,6 +201,27 @@ creating `app.py`) should be the first implementation story.
 - **Module structure:** ES modules (`type="module"`), no bundler. `app.js` is the entry point; it imports `map.js`, `state.js`, and handles form submission + card rendering.
 - **Google Maps JS API:** Loaded via CDN `<script>` tag with `loading=async` and `callback=initMap`. Map instance stored in `map.js` module scope.
 - **Bidirectional sync:** Card clicks call `state.setSelectedRoute(index)`; map marker clicks call the same function. The `routeSelected` CustomEvent triggers visual updates in both surfaces.
+
+### Decision: Mapping Architecture — Not an Agent, But a Tool Source
+
+**Decided:** 2026-05-31 (absorbed from architecture review).
+
+**The question answered:** Should geospatial/mapping adopt the same ADK agent pattern used by chat?
+
+The "ADK pattern" bundles two independent decisions that must be evaluated separately:
+
+- **Pattern A — LLM-as-reasoner:** Use a language model to interpret ambiguous input and select a structured action.
+- **Pattern B — Capability-as-microservice:** Run the capability in its own process, communicate over HTTP with a typed contract.
+
+**Pattern A for mapping: No.**
+Mapping is deterministic input → deterministic output. Given an origin, destination, and corridor, polyline decode and corridor station filtering have exactly one correct answer. Inserting an LLM in that path would add 500–2000 ms latency, introduce non-determinism into reproducible savings calculations, cost money on every plan request, and make the functions untestable.
+
+**Pattern B (microservice split) for mapping: Not yet.**
+`api/pricing.py` and `api/geo.py` are pure-Python, fast, and stateless. The ADK process split is justified for chat because ADK has its own runtime, long-lived session state, and a distinct failure profile. None of those apply to pricing or geo today. Premature service decomposition is distributed coupling. The split becomes appropriate when: (a) `pricing` grows a Redis cache with a refresh job, (b) the anomaly detector becomes an ML model with heavyweight dependencies, or (c) multiple consumers need pricing outside `/api/plan`.
+
+**The right frame:** Mapping should not *be* an agent, but it should *expose tools* the agent can call. Candidates for future agent tools: `explain_anomaly()` (why a station was hidden), `compare_routes()` (trade-off explanation), `get_current_trip()` (state pull for the agent instead of push-fed context updates).
+
+**Agent action contract duplication (known smell):** The tools the ADK agent can call (`submit_trip`, `add_waypoint`, `filter_stations_by_area`, `clear_filter`) are currently defined in three places: Python stubs in `agent/agent.py` (for ADK schema introspection), the `ALLOWED_ACTIONS` whitelist in `api/routes.py`, and the dispatch switch in `static/js/chat.js`. Drift is inevitable. The target state is a single Python dataclass/Pydantic model per action that generates the ADK stub, the routes validator, and a JSON schema the frontend imports. See §8 Tier 1 Recommendation #1.
 
 ### Infrastructure & Deployment
 
@@ -270,7 +305,7 @@ HTTP status codes: `400` bad input, `502` upstream failure (Google Maps or Régi
   "best_station": { ... },
   "worst_station": { ... },
   "savings_per_litre": 0.082,
-  "savings_per_tank_litres": 3.28
+  "savings_per_tank_cad": 3.28
 }
 ```
 
@@ -363,8 +398,46 @@ Never defined inline in `index.html` script tags.
 - ❌ `localStorage.setItem("settings", ...)` with a raw string key outside `state.js`
 - ❌ `{ "data": { "routes": [...] } }` response wrapper
 - ❌ `camelCase` JSON fields in API responses (e.g., `driveTime` instead of `drive_time_seconds`)
+- ❌ Adding a new agent tool to `agent/agent.py` without updating `ALLOWED_ACTIONS` in `api/routes.py` and the dispatch switch in `chat.js` — all three places must stay in sync until the single-contract refactor (§8 Tier 1 #1) is complete
 
 ## Project Structure & Boundaries
+
+### System Architecture Overview
+
+```mermaid
+graph LR
+    subgraph browser["Browser (SPA)"]
+        app_js["app.js"]
+        map_js["map.js"]
+        state_js["state.js"]
+        chat_js["chat.js"]
+    end
+
+    subgraph flask["Flask :5000"]
+        routes["api/routes.py"]
+        pricing["api/pricing.py"]
+        geo["api/geo.py"]
+    end
+
+    subgraph adk["ADK :5001"]
+        agent["agent/agent.py"]
+    end
+
+    gm_dir["Google Maps\nDirections API"]
+    gm_js["Google Maps JS API\n(CDN)"]
+    regie["R\u00e9gie Essence\nGeoJSON"]
+    gemini["Gemini API\n(gemini-2.0-flash)"]
+
+    app_js -->|"POST /api/plan"| routes
+    chat_js -->|"POST /api/chat"| routes
+    routes --> pricing
+    routes --> geo
+    routes -->|"proxy POST /run"| agent
+    pricing -->|"GET stations.geojson.gz"| regie
+    routes -->|"GET /directions"| gm_dir
+    agent -->|"function-calling"| gemini
+    gm_js -.->|"initMap callback"| map_js
+```
 
 ### Complete Project Directory Structure
 
@@ -431,32 +504,51 @@ gaz_eye/
 - `map.js` — owns Google Maps instance, all map rendering, `filterMarkers()`, `restoreMarkers()`, filter badge creation/removal
 
 **Data flow — trip planning:**
-```
-form submit → POST /api/plan → [Google Maps API + Régie Essence GeoJSON]
-  → geo.py (decode + corridor)
-  → pricing.py detect_stale_prices()   ← anomaly filter bidirectional (cheap + expensive direction)
-  → pricing.py filter_by_autonomy()    ← autonomy filter
-  → pricing.py build_recommendation()  ← derives worst_station (most expensive non-anomalous reachable station)
-  → JSON response → app.js renderCards() → state.setSelectedRoute(0)
-  → CustomEvent("routeSelected") → map.js renderRoutes() + renderMarkers()
-  → map.js renders worst_station as red AdvancedMarkerElement (--error: #DC2626)
-  → app.js fires silent POST /api/chat {is_context_update: true, trip params}
+
+```mermaid
+sequenceDiagram
+    participant B as Browser (app.js)
+    participant F as Flask :5000
+    participant R as Régie Essence
+    participant G as Google Maps API
+
+    B->>F: POST /api/plan {origin, destination, range_km, …}
+    F->>R: GET stations.geojson.gz
+    R-->>F: GeoJSON (stations + prices)
+    F->>G: GET /maps/api/directions
+    G-->>F: routes + encoded polylines
+    Note over F: geo.py: decode polylines → corridor stations
+    Note over F: pricing.py: detect_stale_prices() (bidirectional)
+    Note over F: pricing.py: filter_by_autonomy()
+    Note over F: pricing.py: build_recommendation() → worst_station
+    F-->>B: {routes[], data_timestamp}
+    B->>F: POST /api/chat {is_context_update: true} (silent)
+    F-->>B: 204 No Content
 ```
 
 **Data flow — chat (conversational assistant):**
-```
-chat.js user input → POST /api/chat {message, session_id}
-  → api/routes.py proxy → POST http://localhost:5001/run (ADK agent)
-  → ADK → Gemini API (gemini-2.0-flash) function-calling
-  → ADK returns events list → Flask normalizes to {action, params, message}
-  → chat.js dispatches action:
-      submit_trip        → flash form fields (--accent-light) + fills form + submits POST /api/plan
-                           → toast confirmation at bottom of cards panel (4s auto-dismiss)
-      add_waypoint       → flash waypoint field + appends waypoint + re-submits POST /api/plan
-                           → toast confirmation at bottom of cards panel (4s auto-dismiss)
-      filter_stations_by_area → map.js filterMarkers(area) + show filter badge on map
-      clear_filter       → map.js restoreMarkers() + remove filter badge
-      chat_only          → displays message in chat panel only
+
+```mermaid
+sequenceDiagram
+    participant B as Browser (chat.js)
+    participant F as Flask :5000
+    participant A as ADK :5001
+    participant G as Gemini API
+
+    B->>F: POST /api/chat {message, session_id}
+    F->>A: POST /run {appName, userId, sessionId, newMessage}
+    A->>G: function-calling (gemini-2.0-flash)
+    G-->>A: function call + text events
+    A-->>F: events list [{functionCall}, {text}]
+    Note over F: normalize → {action, params, message}
+    F-->>B: {action, params, message}
+    alt action = submit_trip / add_waypoint
+        Note over B: chat.js fills form + fires POST /api/plan
+    else action = filter_stations_by_area / clear_filter
+        Note over B: chat.js → map.js filterMarkers() / restoreMarkers()
+    else action = chat_only
+        Note over B: display message in chat panel
+    end
 ```
 
 ### Requirements to Structure Mapping
@@ -524,6 +616,8 @@ trap "kill $ADK_PID 2>/dev/null" EXIT
 # Start Flask (blocks until Ctrl-C)
 flask --app app run --debug
 ```
+
+> **Note:** The `.env` loading pattern (`grep -v '^#' .env | xargs`) fails silently on values containing spaces, special characters, or embedded `=` signs. A more robust alternative is `set -a; source .env; set +a`. For this single-user local tool the simpler pattern is acceptable, but be aware of the constraint.
 
 ### API Key Handling
 
@@ -773,9 +867,9 @@ google-adk>=1.0
 
 ### Requirements Coverage Validation ✅
 
-**Functional Requirements (47 FRs) — all covered.**
+**Functional Requirements (66 FRs) — all covered.**
 
-Spot-checks on hardest FRs:
+_Epics 1–4 spot-checks (FR1–FR47):_
 
 | FR | Coverage |
 |---|---|
@@ -798,14 +892,19 @@ Spot-checks on hardest FRs:
 | FR30 — data freshness timestamp | `data_timestamp` field in API response; rendered in `app.js` |
 
 **Non-Functional Requirements:**
-- Performance: single `/api/plan` endpoint; GeoJSON fetched once per request, filtered in-memory
-- NFR12 (chat ≤5 s): `gemini-2.0-flash` contributes ~1–2 s; 10 s hard abort in Flask proxy prevents hangs
-- NFR13 (single launch command): `run.sh` starts both Flask and ADK agent with one command
-- NFR14 (Gemini key isolation): `GEMINI_API_KEY` consumed by ADK process only — confirmed in §Gemini API & ADK Integration
 
-**Functional Requirements (66 FRs) — all covered.**
+| NFR | Requirement | Architectural Mechanism |
+|---|---|---|
+| Performance | Full pipeline completes within a few seconds | Single `/api/plan` endpoint; GeoJSON fetched once per request, filtered in-memory; no DB round-trips |
+| Accuracy | Savings calculations within ¢0.1/L of live data | `parse_price_value()` reused verbatim from battle-tested `gaz_saver.py` |
+| Safety | Autonomy filter never recommends out-of-range stations | `filter_by_autonomy()` gates all recommendations — no out-of-range station reaches `build_recommendation()` |
+| Resilience | Graceful degradation on Régie Essence failure | HTTP 502 + structured error body; `#error-banner` in frontend displays it |
+| NFR12 | Chat response ≤5 s end-to-end | `gemini-2.0-flash` ~1–2 s; 10 s hard abort in Flask proxy; spinner covers perceived wait |
+| NFR13 | Single launch command | `run.sh` starts both Flask and ADK agent with one `bash run.sh` command |
+| NFR14 | Gemini key isolation | `GEMINI_API_KEY` consumed by ADK process only; Flask never reads or forwards it — see §Gemini API & ADK Integration |
+| Security | `GOOGLE_MAPS_API_KEY` never exposed to client | Key injected server-side via Jinja2 template; never included in JSON responses, frontend JS, or log output |
 
-Spot-checks on hardest FRs (Epic 5):
+_Epic 5 spot-checks (FR48–FR66):_
 
 | FR | Coverage |
 |---|---|
@@ -821,10 +920,6 @@ Spot-checks on hardest FRs (Epic 5):
 | FR64 — 4 structured tools | `submit_trip`, `add_waypoint`, `filter_stations_by_area`, `clear_filter` defined in `agent/agent.py` |
 | FR65 — `{action, params, message}` response | Flask normalizes ADK events list in `chat_proxy()` before returning |
 | FR66 — session context for follow-ups | ADK session maintains history; trip context injected via synthetic `[TRIP CONTEXT]` message after each `/api/plan` success |
-- Accuracy: `parse_price_value()` reused verbatim from battle-tested `gaz_saver.py`
-- Safety: `filter_by_autonomy()` gates all recommendations — no out-of-range station can reach `build_recommendation()`
-- API key security: key never leaves `api/routes.py`; no frontend route exposes it
-- Resilience: HTTP 502 + structured error body on upstream failure; `#error-banner` displays it
 
 ### Implementation Readiness Validation ✅
 
@@ -842,7 +937,7 @@ Spot-checks on hardest FRs (Epic 5):
 
 2. **`distance_along_route()` semantics** — Distance from origin to station is the cumulative distance along the route polyline to the nearest polyline point, not straight-line distance. Implementation story must specify this clearly.
 
-3. **Google Maps JS API key in `index.html`** — The Maps JavaScript API key is a separate concern from the Directions API key. It must be injected into `index.html` at serve time by Flask (via template rendering), not hardcoded in the static file. Add `GOOGLE_MAPS_JS_KEY` as a second env var. Flask's root route should render `index.html` as a Jinja2 template.
+3. **Google Maps JS API key in `index.html`** — The Maps JavaScript API key must be injected into `index.html` at serve time by Flask (via template rendering), not hardcoded in the static file. The same `GOOGLE_MAPS_API_KEY` env var serves both the Directions API (backend `requests` calls) and the Maps JS API (injected via Jinja2 template) — no second key is required. Flask’s root route renders `index.html` as a Jinja2 template with `render_template("index.html", google_maps_api_key=...)`.
 
 4. **Anomaly filter placement in `api/pricing.py`** — `detect_stale_prices(stations, all_stations, threshold, exemptions)` must be called in `routes.py` **after** corridor matching and **before** `filter_by_autonomy()`. This order is mandatory: the anomaly filter requires the full `all_stations` dataset (for neighbor lookup), so it must run while that dataset is still in scope. The filter is **bidirectional**: stations priced more than `ANOMALY_THRESHOLD_CAD` below *or* above the local median are both set to `float('inf')` — cheap-direction exclusions prevent inflated savings; expensive-direction exclusions prevent `worst_station` from being set by a stale high-price outlier.
 
@@ -860,29 +955,36 @@ Spot-checks on hardest FRs (Epic 5):
 
 ### Architecture Completeness Checklist
 
-**Requirements Analysis**
+**Requirements Analysis** — see §Project Context Analysis
 - [x] Project context thoroughly analyzed
 - [x] Scale and complexity assessed
 - [x] Technical constraints identified
 - [x] Cross-cutting concerns mapped
 
-**Architectural Decisions**
-- [x] Critical decisions documented with versions
-- [x] Technology stack fully specified
-- [x] Integration patterns defined
-- [x] Performance considerations addressed
+**Architectural Decisions** — see §Core Architectural Decisions
+- [x] Critical decisions documented with versions — §Data Architecture, §Authentication & Security, §API & Communication Patterns
+- [x] Technology stack fully specified — §Stack & Technology Selection
+- [x] Integration patterns defined — §Integration Points
+- [x] Performance considerations addressed — §Requirements Coverage Validation (NFR table)
 
-**Implementation Patterns**
-- [x] Naming conventions established
-- [x] Structure patterns defined
-- [x] Communication patterns specified
-- [x] Process patterns documented
+**Implementation Patterns** — see §Implementation Patterns & Consistency Rules
+- [x] Naming conventions established — §Naming Patterns
+- [x] Structure patterns defined — §Structure Patterns
+- [x] Communication patterns specified — §API Format Patterns
+- [x] Process patterns documented — §Process Patterns
 
-**Project Structure**
-- [x] Complete directory structure defined
-- [x] Component boundaries established
-- [x] Integration points mapped
-- [x] Requirements to structure mapping complete
+**Project Structure** — see §Project Structure & Boundaries
+- [x] Complete directory structure defined — §Complete Project Directory Structure
+- [x] Component boundaries established — §Architectural Boundaries
+- [x] Integration points mapped — §Integration Points
+- [x] Requirements to structure mapping complete — §Requirements to Structure Mapping
+
+**Architecture Review** — see §8 Architecture Review Findings & Recommendations
+- [x] Health scorecard produced — §8 Health Scorecard
+- [x] Backend, frontend, and cross-cutting findings documented with severity — §8.1–8.3
+- [x] Critical issues ordered by leverage — §8.4
+- [x] Tiered recommendations (Tier 1/2/3) documented — §8.5
+- [x] Architectural decision on mapping vs ADK pattern recorded — §3 Decision: Mapping Architecture
 
 ### Architecture Readiness Assessment
 
@@ -898,7 +1000,6 @@ Spot-checks on hardest FRs (Epic 5):
 **Areas for Future Enhancement:**
 - Phase 2: Graceful Régie Essence degradation
 - Phase 2: Driving-distance routing to stations (vs. crow-flies)
-- Phase 3: Google Maps JS key injection hardened via server-side template rendering
 
 ### Implementation Handoff
 
@@ -911,6 +1012,96 @@ Spot-checks on hardest FRs (Epic 5):
 
 **First Implementation Priority:**
 1. Add `polyline` to `requirements.txt`
-2. Add `GOOGLE_MAPS_JS_KEY` to `.env.example`
+2. Confirm `GOOGLE_MAPS_API_KEY` in `.env.example` covers both Directions API and Maps JS injection (same key, no second var needed)
 3. Extract `api/pricing.py` from `gaz_saver.py`
 4. Create `app.py` Flask factory + `run.sh`
+
+## Architecture Review Findings & Recommendations
+
+_Review conducted by Winston (System Architect) on 2026-05-31. Absorbed into this document 2026-06-15. Scope: full-stack review — Flask backend, vanilla JS SPA, ADK chat agent, orphaned CLI._
+
+### Health Scorecard
+
+| Dimension | Grade | Notes |
+|---|---|---|
+| Backend modularity | A− | Clean layers; minor leaky mutations (see §8.1) |
+| Frontend modularity | C+ | `app.js` god-module risk, `map.js` globals |
+| Coupling | B | Chat ↔ map is the worst offender |
+| Consistency | B− | Two patterns for missing prices, two patterns for chat↔map comms, error-handling style varies |
+| Operational readiness | C | No caching, no request IDs, hardcoded service URL |
+| Security posture | B+ | XSS guards, secret masking; no schema validation |
+| Testability | B | Backend pure functions excellent; frontend has no seams |
+| Conceptual integrity (agent ↔ app) | C | Tool definitions duplicated in 3 places; silent context update is a smell |
+
+### 8.1 Backend Findings
+
+| Finding | Severity | Location |
+|---|---|---|
+| `geo.find_stations_in_corridor` mutates input stations in place (adds `distance_from_route_km`). Callers must know. | Low | `api/geo.py` |
+| `pricing.rank_routes` mutates inputs in place — inconsistent with the rest of `pricing.py`, which returns new objects. | Low | `api/pricing.py` |
+| `_CONFIG_PATH` is a module-level constant in `routes.py` pointing at the YAML. Mixes HTTP orchestration with disk layout knowledge. | Low | `api/routes.py` |
+| `float('inf')` sentinel for missing prices is clever but spreads magic-value semantics. Frontend mirrors with `isFinite()`. Two patterns, one concept. | Low | `api/pricing.py`, `static/js/app.js` |
+| No request/response schema validation (no Pydantic, no JSON schema). Contracts live in code only. | Medium | API boundary |
+| YAML is re-read from disk on every `/api/plan` call. No mtime check, no cache. | Low | `api/routes.py` |
+
+### 8.2 Frontend Findings
+
+| Finding | Severity | Location |
+|---|---|---|
+| `app.js` (~620 LOC) handles form, card rendering, settings drawer, error banner, reachability banner, timestamp, skeleton, and low-range indicator. God module forming. | Medium | `static/js/app.js` |
+| `map.js` keeps `map`, `polylines`, `markers`, `infoWindow` as module-level mutable globals. Re-init or a second map instance would break. | Medium | `static/js/map.js` |
+| `chat.js` imports `filterMarkers`/`restoreMarkers` directly from `map.js`. Other interactions go through `CustomEvent`s. Two conventions for the same problem. | Medium | `static/js/chat.js`, `static/js/map.js` |
+| Backend error `message` is intentionally dropped on the frontend (`_message` argument). Safe by default, but loses diagnostic value in dev. | Low | `static/js/app.js` |
+| No type system, no JSDoc on contract objects (`route`, `station`, `action` payload). Contracts drift silently. | Medium | All `static/js/*.js` |
+
+### 8.3 Cross-Cutting Findings
+
+| Finding | Severity |
+|---|---|
+| **No caching layer.** Every `/api/plan` = 1 Régie Essence fetch (all of Quebec) + 1 Google Maps call + 1 disk YAML read. Régie data changes minutes-to-hours, not seconds. | **High** |
+| **Duplicated GeoJSON fetch & price parsing** between `gaz_saver.py` and `api/pricing.py`. | Medium |
+| **`ADK_SERVICE_URL` hardcoded** to `http://localhost:5001` in `routes.py`. Will break the first real deployment. | Medium |
+| Logging is inconsistent — Python uses `logging`, JS has none. No request IDs to correlate frontend errors with backend logs. | Low |
+| No HTTP cache headers on `/api/plan` (POST anyway, but worth deciding). Static assets served via Flask, no CDN posture. | Low |
+
+### 8.4 Critical Issues (ordered by leverage)
+
+1. **Cold cache on every request.** Two upstream calls per `/api/plan`. Single-user dev hides this. First production traffic spike won't.
+2. **`gaz_saver.py` is orphaned legacy code that duplicates `pricing.py`.** Delete it, or extract a `regie_essence_client.py` and have both use it. Any fix to GeoJSON handling must currently be made twice.
+3. **`ADK_SERVICE_URL` hardcoded.** Move to env var, default to localhost.
+4. **`app.js` god-module risk.** Split before it hits 1000 LOC and becomes untouchable.
+5. **`map.js` module globals.** Wrap in a `MapController` factory so state is owned and disposable.
+6. **No schema validation on API boundary.** A typo in `submit_trip` params from the LLM could silently misfill the form.
+
+### 8.5 Recommendations
+
+#### Tier 1 — Do these soon
+
+1. **Single source of truth for agent actions.** Define each action as a Python dataclass/Pydantic model. Generate the ADK tool stub, the `routes.py` validator, and a JSON schema the frontend imports. Eliminates the three-place duplication flagged in §3 (mapping/ADK decision).
+2. **Cache Régie Essence at module level with TTL.** Even a 5-minute in-process cache eliminates the duplicate-fetch storm when a user adjusts settings and re-plans. ~20 lines.
+3. **Cache YAML config with mtime check.** Re-read only if the file changed. Trivial.
+4. **Delete or merge `gaz_saver.py`.** Extract `regie_essence_client.py` if keeping the CLI; otherwise delete. The duplication is a footgun.
+5. **`MapController` factory wrapping `map.js` globals.** `function createMapController() { ... return { renderRoutes, renderMarkers, filterMarkers, ... } }`. Disposable, testable, multi-map-ready.
+6. **Env-var-driven `ADK_SERVICE_URL`.** `os.environ.get("ADK_SERVICE_URL", "http://localhost:5001")`. One-line ops unblock.
+
+#### Tier 2 — Plan for these
+
+7. **Split `app.js`** into `form.js`, `cards.js`, `settings.js`; leave `app.js` as a thin bootstrap.
+8. **JSDoc the contract objects** (`Route`, `Station`, `AgentAction`). Free intellisense, free drift detection.
+9. **Pydantic models on `/api/plan` and `/api/chat`.** Contracts are already documented in comments — make them executable.
+10. **Replace the silent context update with a tool call.** Server keeps trip state per `session_id`; agent calls `get_current_trip()` when needed. Aligns with ADK SDK design and keeps the conversation log honest.
+11. **Server-Sent Events on `/api/chat`.** ADK responses can stream. SSE makes the assistant feel alive for free.
+12. **Request IDs end-to-end.** UUID generated client-side, sent in `X-Request-Id`, logged on backend. Without this, debugging a user-reported failure requires guessing timestamps.
+
+#### Tier 3 — Bigger bets, only when the problem appears
+
+13. **Shareable trip URLs.** Push form state + selected route into the URL via History API. Free deep linking, large UX dividend, tiny code change.
+14. **Progressive `/api/plan` response.** Stream route shapes first, then stations as scored. Today the user sees a spinner for the slowest call (Régie Essence).
+15. **Replace in-process anomaly heuristic with a time-series view.** Today "stale" is inferred from spatial median deviation. With persisted price history, staleness becomes a direct measurement. This is where a real ML model — and a Pattern B microservice split — would finally earn its keep.
+16. **Edge-cached Régie data.** A Cloudflare Worker pulling the GeoJSON every 5 minutes and serving from KV would remove Régie Essence from the critical path entirely.
+17. **TypeScript on the frontend.** Not urgent. But the cost grows linearly with JS LOC, and the project is at ~1290.
+18. **Agent observability.** Log every tool call, params, and outcome. Today the agent is a black box — when a user says "it filled the wrong destination," there is no trace.
+
+---
+
+_"Don't make mapping an agent — make the agent's tools and the frontend's actions the same contract, cache the upstreams, and break up `app.js` before it breaks you."_ — Winston
