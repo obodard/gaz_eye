@@ -4,7 +4,7 @@
  */
 
 import { sessionId } from "./state.js";
-import { filterMarkers, restoreMarkers } from "./map.js";
+import { addAreaMarker, clearAreaMarkers } from "./map.js";
 
 // ---------------------------------------------------------------------------
 // DOM references
@@ -164,12 +164,12 @@ function dispatchAction(response) {
 
         case "filter_stations_by_area":
             if (params.lat != null && params.lng != null) {
-                filterMarkers(params.area_name || "", params.lat, params.lng);
+                addAreaMarker(params.area_name || "", params.lat, params.lng);
             }
             break;
 
         case "clear_filter":
-            restoreMarkers();
+            clearAreaMarkers();
             break;
 
         case "chat_only":

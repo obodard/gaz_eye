@@ -4,7 +4,7 @@
  * window.initMap is assigned at module level so the Maps CDN callback finds it after load.
  */
 
-import { setSelectedRoute } from "./state.js";
+import { setSelectedRoute, state } from "./state.js";
 
 const ROUTE_COLOURS = [
     "#2563EB",  // Route A — blue-600  (--route-1)
@@ -13,10 +13,12 @@ const ROUTE_COLOURS = [
 ];
 
 const WORST_STATION_COLOUR = "#DC2626";  // --error red
+const AREA_STATION_COLOUR  = "#16A34A";  // green for area-highlight markers
 
 let map = null;
 let polylines = [];
 let markers = [];
+let areaMarkers = [];
 let infoWindow = null;
 
 const fuelPumpSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="white">
@@ -80,6 +82,7 @@ export function clearRoutes() {
     if (infoWindow) infoWindow.close();
     polylines = [];
     markers = [];
+    clearAreaMarkers();
 }
 
 /**
@@ -214,7 +217,107 @@ function updateSelection(selectedIndex) {
 }
 
 // ---------------------------------------------------------------------------
-// Marker filtering (Story 5.5)
+// Area marker overlay (nearest station to a named area)
+// ---------------------------------------------------------------------------
+
+/**
+ * Find the nearest station from any loaded route's corridor to the given coordinates.
+ */
+function findNearestRouteStation(lat, lng) {
+    let nearest = null;
+    let nearestDist = Infinity;
+    for (const route of (state.routes || [])) {
+        for (const station of (route.stations || [])) {
+            if (!isFinite(station.lat) || !isFinite(station.lng)) continue;
+            const d = haversineKm(lat, lng, station.lat, station.lng);
+            if (d < nearestDist) {
+                nearestDist = d;
+                nearest = station;
+            }
+        }
+    }
+    return nearest;
+}
+
+/**
+ * Add a green pin for the nearest station (from ALL stations) to the named area.
+ * Falls back to corridor stations if the API call fails.
+ * Pans the map to the marker so off-route areas are visible.
+ */
+export async function addAreaMarker(areaName, lat, lng) {
+    if (!map) return;
+
+    // Query all stations (not just corridor) so off-route areas work correctly
+    let station = null;
+    try {
+        const fuelType = (state.settings && state.settings.fuel_type) || "Régulier";
+        const resp = await fetch(
+            `/api/nearest_station?lat=${lat}&lng=${lng}&fuel_type=${encodeURIComponent(fuelType)}`
+        );
+        if (resp.ok) {
+            const data = await resp.json();
+            station = data.station;
+        }
+    } catch (_) {
+        // Fall back to corridor stations if the request fails
+        station = findNearestRouteStation(lat, lng);
+    }
+
+    if (!station) return;
+
+    const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
+    const pinEl = createPinElement(AREA_STATION_COLOUR, 32);
+
+    const marker = new AdvancedMarkerElement({
+        position: { lat: station.lat, lng: station.lng },
+        map,
+        content: pinEl,
+        title: station.name,
+    });
+
+    pinEl.addEventListener("mouseover", () => {
+        infoWindow.setContent(`<b>${station.name}</b><br>${formatPrice(station.price_per_litre)}`);
+        infoWindow.open({ map, anchor: marker });
+    });
+    pinEl.addEventListener("mouseout", () => infoWindow.close());
+
+    areaMarkers.push(marker);
+
+    // Pan to the area marker so off-route locations become visible
+    map.panTo({ lat: station.lat, lng: station.lng });
+
+    // Show / update filter badge
+    let badge = document.getElementById("filter-badge");
+    if (!badge) {
+        badge = document.createElement("div");
+        badge.id = "filter-badge";
+        const mapEl = document.getElementById("map");
+        if (mapEl) mapEl.appendChild(badge);
+    }
+    badge.innerHTML = "";
+    badge.appendChild(document.createTextNode(`📍 ${areaName} · `));
+    const clearLink = document.createElement("a");
+    clearLink.href = "#";
+    clearLink.textContent = "Clear";
+    clearLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        clearAreaMarkers();
+    });
+    badge.appendChild(clearLink);
+}
+
+/**
+ * Remove all area markers and the filter badge.
+ */
+export function clearAreaMarkers() {
+    areaMarkers.forEach((marker) => { marker.map = null; });
+    areaMarkers = [];
+    const badge = document.getElementById("filter-badge");
+    if (badge) badge.remove();
+}
+
+// ---------------------------------------------------------------------------
+// Marker filtering (Story 5.5 — kept for reference; no longer used by chat)
 // ---------------------------------------------------------------------------
 
 let hiddenMarkers = [];

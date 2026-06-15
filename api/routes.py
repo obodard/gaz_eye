@@ -13,7 +13,7 @@ import requests
 import yaml
 from flask import Blueprint, current_app, jsonify, render_template, request
 
-from api.geo import decode_polyline, find_stations_in_corridor, distance_along_route
+from api.geo import decode_polyline, find_stations_in_corridor, distance_along_route, haversine
 from api.pricing import (
     build_recommendation,
     detect_stale_prices,
@@ -197,6 +197,39 @@ def plan():
     rank_routes(routes)
 
     return jsonify({"routes": routes, "data_timestamp": data_timestamp}), 200
+
+
+@bp.route("/api/nearest_station")
+def nearest_station():
+    """Return the nearest gas station to the given coordinates from all available stations."""
+    lat = request.args.get("lat", type=float)
+    lng = request.args.get("lng", type=float)
+    fuel_type = request.args.get("fuel_type", "Régulier")
+
+    if lat is None or lng is None:
+        return jsonify({"error": "bad_request", "message": "lat and lng are required"}), 400
+
+    try:
+        all_stations, _ = fetch_stations(fuel_type)
+    except Exception as exc:
+        return jsonify({"error": "regie_essence", "message": str(exc)}), 502
+
+    nearest = None
+    nearest_dist = float("inf")
+    for station in all_stations:
+        d = haversine(station["lat"], station["lng"], lat, lng)
+        if d < nearest_dist:
+            nearest_dist = d
+            nearest = station
+
+    if nearest is None:
+        return jsonify({"station": None}), 200
+
+    station_data = dict(nearest)
+    if station_data.get("price_per_litre") == float("inf"):
+        station_data["price_per_litre"] = None
+
+    return jsonify({"station": station_data, "distance_km": round(nearest_dist, 2)}), 200
 
 
 def _normalize_adk_response(adk_json) -> dict:

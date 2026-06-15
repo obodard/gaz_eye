@@ -679,3 +679,90 @@ class TestChatEndpoint:
         assert payload["session_id"] == "test-session"
         assert payload["new_message"]["role"] == "user"
         assert payload["new_message"]["parts"][0]["text"] == "Hello world"
+
+
+# ---------------------------------------------------------------------------
+# GET /api/nearest_station endpoint
+# ---------------------------------------------------------------------------
+
+class TestNearestStation:
+    """Tests for GET /api/nearest_station."""
+
+    @patch("api.routes.fetch_stations")
+    def test_returns_nearest_station(self, mock_fetch, client):
+        """Returns the station closest to the given coordinates."""
+        stations = [
+            {"name": "Far Station", "address": "1 rue Far", "lat": 46.1, "lng": -74.6,
+             "price_per_litre": 1.60},
+            {"name": "Near Station", "address": "2 rue Near", "lat": 46.12, "lng": -74.59,
+             "price_per_litre": 1.55},
+        ]
+        mock_fetch.return_value = (stations, "2026-05-01T00:00:00Z")
+
+        resp = client.get("/api/nearest_station?lat=46.12&lng=-74.59")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["station"] is not None
+        assert data["station"]["name"] == "Near Station"
+        assert "distance_km" in data
+
+    @patch("api.routes.fetch_stations")
+    def test_missing_lat_returns_400(self, mock_fetch, client):
+        """Missing lat query param → 400."""
+        resp = client.get("/api/nearest_station?lng=-74.0")
+        assert resp.status_code == 400
+        assert resp.get_json()["error"] == "bad_request"
+
+    @patch("api.routes.fetch_stations")
+    def test_missing_lng_returns_400(self, mock_fetch, client):
+        """Missing lng query param → 400."""
+        resp = client.get("/api/nearest_station?lat=46.0")
+        assert resp.status_code == 400
+        assert resp.get_json()["error"] == "bad_request"
+
+    @patch("api.routes.fetch_stations")
+    def test_regie_failure_returns_502(self, mock_fetch, client):
+        """fetch_stations exception → 502 with error='regie_essence'."""
+        mock_fetch.side_effect = ValueError("fetch failed")
+
+        resp = client.get("/api/nearest_station?lat=46.1&lng=-74.6")
+
+        assert resp.status_code == 502
+        assert resp.get_json()["error"] == "regie_essence"
+
+    @patch("api.routes.fetch_stations")
+    def test_empty_stations_returns_null_station(self, mock_fetch, client):
+        """No stations available → station field is null."""
+        mock_fetch.return_value = ([], "2026-05-01T00:00:00Z")
+
+        resp = client.get("/api/nearest_station?lat=46.1&lng=-74.6")
+
+        assert resp.status_code == 200
+        assert resp.get_json()["station"] is None
+
+    @patch("api.routes.fetch_stations")
+    def test_inf_price_serialized_to_null(self, mock_fetch, client):
+        """Station with price float('inf') → price_per_litre serialized as null."""
+        stations = [
+            {"name": "No Price Station", "address": "1 rue Test", "lat": 46.1, "lng": -74.6,
+             "price_per_litre": float("inf")},
+        ]
+        mock_fetch.return_value = (stations, "2026-05-01T00:00:00Z")
+
+        resp = client.get("/api/nearest_station?lat=46.1&lng=-74.6")
+
+        assert resp.status_code == 200
+        assert resp.get_json()["station"]["price_per_litre"] is None
+
+    @patch("api.routes.fetch_stations")
+    def test_fuel_type_forwarded_to_fetch(self, mock_fetch, client):
+        """fuel_type query param is forwarded to fetch_stations."""
+        mock_fetch.return_value = (
+            [{"name": "S", "address": "A", "lat": 46.0, "lng": -74.0, "price_per_litre": 1.5}],
+            "2026-05-01T00:00:00Z",
+        )
+
+        client.get("/api/nearest_station?lat=46.0&lng=-74.0&fuel_type=Super")
+
+        mock_fetch.assert_called_once_with("Super")

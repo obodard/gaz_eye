@@ -243,7 +243,7 @@ def detect_stale_prices(
                 if not (math.isclose(s["lat"], station["lat"], abs_tol=1e-8) and math.isclose(s["lng"], station["lng"], abs_tol=1e-8))
                 and haversine(station["lat"], station["lng"], s["lat"], s["lng"]) <= radius
             ]
-            if len(candidates) >= 2:
+            if len(candidates) >= 3:
                 neighbors = candidates
                 radius_used = radius
                 break
