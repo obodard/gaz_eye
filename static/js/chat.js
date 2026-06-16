@@ -30,11 +30,9 @@ function toggleChat() {
 }
 
 function expandChat() {
-    if (chatPanel.classList.contains("chat-collapsed")) {
-        chatPanel.classList.remove("chat-collapsed");
-        chatPanel.classList.add("chat-expanded");
-        chatToggle.textContent = "▼";
-    }
+    chatPanel.classList.remove("chat-collapsed");
+    chatPanel.classList.add("chat-expanded");
+    chatToggle.textContent = "▼";
 }
 
 // ---------------------------------------------------------------------------
@@ -238,6 +236,8 @@ function initChat() {
     chatToggle = document.getElementById("chat-toggle");
 
     if (!chatPanel || !chatInput) return;
+
+    expandChat();
 
     // Toggle expand/collapse
     chatToggle.addEventListener("click", toggleChat);
