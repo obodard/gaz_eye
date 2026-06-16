@@ -1,70 +1,110 @@
 # ⛽ Checkov — Régie Essence Québec
 
 Checkov is your fuel-price navigator, named after Pavel Chekov, navigator of the Enterprise, because even starships need someone to say, “Keptin, I have found cheaper gas three sectors east.”
+More seriously, it's a locally hosted web app for planning fuel-efficient road trips in Quebec. It combines Google Maps routing with live Régie Essence Québec fuel prices, then compares up to three route alternatives by drive time, reachable stations, and estimated fuel savings.
 
-This app helps you plot a smarter course through local gas prices, avoid wallet-draining anomalies, and boldly go where the price per litre is slightly less insulting. No warp core required. No red alert unless prices jump again.
+The app is built for a single local user. It runs a Flask backend, a vanilla JavaScript SPA, and an optional Gemini-powered Google ADK assistant.
 
-Set phasers to savings.
+## Features
 
-A Python CLI tool to monitor gas prices at specific stations in Quebec. It fetches real-time data from the official [Régie Essence Québec](https://regieessencequebec.ca/) public data source and displays results in a formatted terminal table, grouped by city and sorted by price.
+- Route planning with Google Maps Directions API, including optional waypoints.
+- Automatic Quebec gas-station discovery along each route corridor.
+- Live Régie Essence Québec pricing from the public GeoJSON feed.
+- Fuel autonomy filtering using remaining range and a safety buffer.
+- Per-route best and worst reachable station recommendations.
+- Savings estimates per litre and per tank.
+- Bidirectional stale-price anomaly filtering for unusually cheap or expensive prices.
+- Exemptions and kill switch for the anomaly filter via `stations.yaml`.
+- Interactive Google Maps display with best and most expensive station markers.
+- Chat assistant for trip submission, waypoint additions, and map station filtering.
 
-## 🚀 Quick Start
+## Requirements
 
-1. **Install dependencies:**
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
+- Python 3.9+
+- A Google Maps API key with Directions API and Maps JavaScript API access.
+- A Gemini API key if you want to use the chat assistant.
 
-2. **Configure your stations:**
-   Edit `stations.yaml` to include the addresses of the stations you want to monitor.
+Install dependencies:
 
-3. **Run the script:**
-   ```bash
-   python3 checkov.py
-   ```
-
-## ⚙️ Configuration (`stations.yaml`)
-
-The tool uses a **partial address match** (case-insensitive) to find stations in the official database. You can also define an **alias** for each station to make them easier to identify.
-
-```yaml
-cities:
-  - city: "Montréal"
-    stations:
-      - address: "9403 boul. des Sciences" 
-        alias: "Boulot"
-      - address: "4920 rue Beaubien est"
-        alias: "Maison"
-
-  - city: "Saint-André-Avellin"
-    stations:
-      - address: "615 rte 321 nord"
-        reference_station: yes  # Used for Delta calculations
-
-settings:
-  - tank_litres: 50             # Tank capacity for savings calculation
-  - gaz_type: "Régulier"        # "Régulier" | "Super" | "Diesel"
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-> [!TIP]
-> To find valid address strings, visit the official [Régie Essence Québec Map](https://regieessencequebec.ca/).
+Create a local `.env` file:
 
-## 🛠️ Requirements
+```bash
+GOOGLE_MAPS_API_KEY=your_google_maps_key
+GEMINI_API_KEY=your_gemini_key
+```
 
-- Python 3.7+
-- `requests`
-- `pyyaml`
+`GOOGLE_MAPS_API_KEY` is required for route planning and map rendering. `GEMINI_API_KEY` is only required for chat.
 
-##  Features
+## Run
 
-- **Real-time Data:** Fetches the latest GeoJSON data directly from the Régie de l'énergie.
-- **Smart Sorting:** Automatically sorts stations by price (cheapest first).
-- **Price Delta:** Compares all stations to your designated `reference_station`.
-- **Customizable Savings:** Calculates the estimated difference for a fuel tank of any size (default: 50L).
-- **Multiple Fuel Types:** Supports tracking Régulier, Super, or Diesel prices.
-- **Custom Aliases:** Add labels like "Home" or "Work" for quick identification.
-- **Color-coded Output:** High-visibility terminal output with CYAN city labels and BOLD price highlights.
-- **Automatic Alignment:** Columns remain aligned even with long city names (e.g., *Sainte-Agathe-des-Monts*).
-- **No API Key Required:** Uses public consumer-facing endpoints.
+```bash
+./run.sh
+```
+
+Then open:
+
+```text
+http://127.0.0.1:5000
+```
+
+`run.sh` starts the ADK agent service on port `5001`, then starts Flask in debug mode on port `5000`.
+
+## Configuration
+
+Most trip settings are controlled in the web UI and stored in browser `localStorage`:
+
+- fuel type: `Régulier`, `Super`, or `Diesel`
+- tank size
+- corridor radius
+- safety buffer
+- maximum route alternatives
+
+`stations.yaml` is still used for:
+
+- legacy CLI station lists
+- default legacy fuel/tank settings
+- anomaly filter controls:
+
+```yaml
+anomaly_filter_enabled: true
+anomaly_filter_exemptions: ["costco", "olco"]
+```
+
+The web app no longer requires manually curated station lists for route planning. Stations are discovered automatically from the Régie Essence Québec dataset.
+
+## API
+
+Primary endpoints:
+
+- `POST /api/plan` - returns route alternatives with station recommendations.
+- `POST /api/chat` - proxies chat messages to the local ADK agent.
+- `GET /api/nearest_station` - returns the nearest station for a coordinate pair.
+
+The backend fetches Régie Essence data before calling Google Maps, so Régie failures return before spending a Maps quota call.
+
+## Legacy CLI
+
+`checkov.py` remains in the repository as a standalone CLI. The current web app does not import it; the canonical pricing pipeline for the web app is `api/pricing.py`.
+
+Run the legacy CLI with:
+
+```bash
+python3 checkov.py
+```
+
+## Project Status
+
+This README reflects the BMAD artifacts last updated on 2026-06-15:
+
+- `_bmad-output/planning-artifacts/prd.md`
+- `_bmad-output/planning-artifacts/architecture.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/project-context.md`
+
+BMAD sprint status marks Epics 1-5 complete: foundation, route planning API, SPA, price-quality filtering, and conversational assistant.
