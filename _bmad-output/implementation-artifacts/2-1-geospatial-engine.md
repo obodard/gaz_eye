@@ -160,7 +160,7 @@ from api.geo import decode_polyline, haversine
 - `api/pricing.py` — no changes required for this story
 - `api/routes.py` — no changes required for this story
 - `tests/test_pricing.py` — no changes required for this story
-- `gaz_saver.py` — must remain 100% unchanged
+- `checkov.py` — must remain 100% unchanged
 
 ## Dev Agent Record
 

@@ -108,7 +108,7 @@ const isSameLocation = bs &&
 - Threshold `1e-6` degrees is ~0.11 meters at equator but ~0.05 meters at latitude 60°N
 - At higher latitudes or near poles, the distance represented by `1e-6°` lat/lng varies significantly
 - **Problem:** Fixed tolerance doesn't account for latitude; could miss true duplicates or falsely match distinct stations in high-latitude regions
-- **Severity:** Moderate (gaz_eye appears to focus on Quebec, which is at ~46°N, but not hard-coded)
+- **Severity:** Moderate (checkov appears to focus on Quebec, which is at ~46°N, but not hard-coded)
 
 **Classification:** `patch`  
 **Fix:** Use haversine distance or scale tolerance by latitude: `threshold_deg = 1e-5; const dist = Math.sqrt((ws.lat - bs.lat)**2 + (ws.lng - bs.lng * Math.cos(bs.lat * Math.PI/180))**2); if (dist < threshold_deg) { ... }`

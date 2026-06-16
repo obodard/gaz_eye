@@ -1,4 +1,4 @@
-"""gaz_eye ADK agent package — exports root_agent for the ADK service."""
+"""checkov ADK agent package — exports root_agent for the ADK service."""
 
 from agent.agent import root_agent
 

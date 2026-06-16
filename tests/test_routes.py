@@ -93,7 +93,7 @@ class TestServeIndex:
         """GET / returns 200 with HTML content."""
         resp = client.get("/")
         assert resp.status_code == 200
-        assert b"gaz_eye" in resp.data
+        assert b"Checkov" in resp.data
 
     def test_api_key_in_script_src_only(self, client):
         """GOOGLE_MAPS_API_KEY appears only in Maps CDN script src, not as a JS variable."""
@@ -466,7 +466,7 @@ def _make_adk_response_with_function_call():
         "result": "ok",
         "events": [
             {
-                "author": "gaz_eye_assistant",
+                "author": "checkov_assistant",
                 "content": {
                     "parts": [
                         {
@@ -479,7 +479,7 @@ def _make_adk_response_with_function_call():
                 },
             },
             {
-                "author": "gaz_eye_assistant",
+                "author": "checkov_assistant",
                 "content": {
                     "parts": [
                         {"text": "Planning Montréal → Duhamel with 180 km range — loading routes."}
@@ -496,7 +496,7 @@ def _make_adk_response_text_only():
         "result": "ok",
         "events": [
             {
-                "author": "gaz_eye_assistant",
+                "author": "checkov_assistant",
                 "content": {
                     "parts": [{"text": "What is your destination?"}]
                 },
@@ -637,7 +637,7 @@ class TestChatEndpoint:
             "result": "ok",
             "events": [
                 {
-                    "author": "gaz_eye_assistant",
+                    "author": "checkov_assistant",
                     "content": {
                         "parts": [
                             {"functionCall": {"name": "unknown_action", "args": {"foo": "bar"}}},
@@ -674,11 +674,11 @@ class TestChatEndpoint:
 
         call_kwargs = mock_post.call_args
         payload = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
-        assert payload["app_name"] == "gaz_eye_assistant"
-        assert payload["user_id"] == "local_user"
-        assert payload["session_id"] == "test-session"
-        assert payload["new_message"]["role"] == "user"
-        assert payload["new_message"]["parts"][0]["text"] == "Hello world"
+        assert payload["appName"] == "agent"
+        assert payload["userId"] == "local_user"
+        assert payload["sessionId"] == "test-session"
+        assert payload["newMessage"]["role"] == "user"
+        assert payload["newMessage"]["parts"][0]["text"] == "Hello world"
 
 
 # ---------------------------------------------------------------------------

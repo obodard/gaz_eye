@@ -6,8 +6,8 @@
   },
   "mode": "initial_scan",
   "scan_level": "exhaustive",
-  "project_root": "/Users/olivierbodard/dev/perso/github/gaz_eye",
-  "project_knowledge": "/Users/olivierbodard/dev/perso/github/gaz_eye/docs",
+  "project_root": "{project-root}",
+  "project_knowledge": "{project-root}/docs",
   "project_types": [
     {"part_id": "root", "project_type_id": "cli", "display_name": "CLI Application"}
   ],

@@ -1,5 +1,5 @@
 """
-gaz_eye — Flask application factory.
+checkov — Flask application factory.
 
 Creates and configures the Flask app. All routes are registered via Blueprint.
 Zero @app.route decorators live here.
@@ -12,7 +12,7 @@ import sys
 from dotenv import load_dotenv
 from flask import Flask
 
-logger = logging.getLogger("gaz_eye")
+logger = logging.getLogger("checkov")
 if not logger.handlers:
     _handler = logging.StreamHandler(sys.stdout)
     _handler.setFormatter(logging.Formatter('%(message)s'))

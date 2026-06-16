@@ -75,10 +75,10 @@ class TestRootAgent:
         assert isinstance(root_agent, Agent)
 
     def test_root_agent_name(self):
-        """root_agent.name should be 'gaz_eye_assistant'."""
+        """root_agent.name should be 'checkov_assistant'."""
         from agent.agent import root_agent
 
-        assert root_agent.name == "gaz_eye_assistant"
+        assert root_agent.name == "checkov_assistant"
 
     def test_root_agent_model(self):
         """root_agent.model should be 'gemini-2.0-flash'."""
@@ -137,4 +137,4 @@ class TestPackageExport:
         """root_agent is importable from the agent package."""
         from agent import root_agent
 
-        assert root_agent.name == "gaz_eye_assistant"
+        assert root_agent.name == "checkov_assistant"

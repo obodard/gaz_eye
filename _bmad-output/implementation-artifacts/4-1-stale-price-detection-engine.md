@@ -91,7 +91,7 @@ Module-level structure:
 ```python
 # module docstring
 # imports: gzip, json, logging, math, sys, typing.Any/Optional, requests
-logger = logging.getLogger("gaz_eye.pricing")
+logger = logging.getLogger("checkov.pricing")
 # logger setup block
 GEOJSON_URL = "..."
 _HEADERS = { ... }

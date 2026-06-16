@@ -1,4 +1,4 @@
-# Development Guide — gaz_eye
+# Development Guide — checkov
 
 ## Prerequisites
 
@@ -10,7 +10,7 @@
 ```bash
 # Clone the repository
 git clone <repo-url>
-cd gaz_eye
+cd <repo-folder>
 
 # Create and activate virtual environment
 python3 -m venv .venv
@@ -42,7 +42,7 @@ Find valid addresses at [regieessencequebec.ca](https://regieessencequebec.ca/).
 ## Running
 
 ```bash
-python3 gaz_saver.py
+python3 checkov.py
 ```
 
 Output is a color-coded terminal table showing:

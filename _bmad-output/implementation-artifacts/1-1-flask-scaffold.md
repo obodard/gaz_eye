@@ -12,7 +12,7 @@ So that I have a working foundation to build all subsequent backend and frontend
 
 ## Acceptance Criteria
 
-**AC1:** Given the repository is cloned and `.env` contains `GOOGLE_MAPS_API_KEY=<any value>`, when I run `./run.sh`, then Flask starts at `http://localhost:5000` with debug/hot-reload enabled, `GET /` returns HTTP 200 with placeholder HTML containing "gaz_eye", and a startup warning is printed to stdout if `GOOGLE_MAPS_API_KEY` is unset in the environment.
+**AC1:** Given the repository is cloned and `.env` contains `GOOGLE_MAPS_API_KEY=<any value>`, when I run `./run.sh`, then Flask starts at `http://localhost:5000` with debug/hot-reload enabled, `GET /` returns HTTP 200 with placeholder HTML containing "checkov", and a startup warning is printed to stdout if `GOOGLE_MAPS_API_KEY` is unset in the environment.
 
 **AC2:** Given the project structure after this story, when I inspect the repository, then the following files exist:
 - `app.py` (pure factory, zero `@app.route` decorators)
@@ -23,7 +23,7 @@ So that I have a working foundation to build all subsequent backend and frontend
 - `.gitignore` (includes `.env`, `__pycache__/`, `*.pyc`)
 - `requirements.txt` updated to include `flask==3.1.3` and `python-dotenv`
 
-**AC3:** `gaz_saver.py` and `stations.yaml` are preserved entirely unchanged.
+**AC3:** `checkov.py` and `stations.yaml` are preserved entirely unchanged.
 
 ## Tasks / Subtasks
 
@@ -38,7 +38,7 @@ So that I have a working foundation to build all subsequent backend and frontend
   - [x] No `@app.route` decorators
 - [x] Task 3: Create `api/__init__.py` and `api/routes.py` with Blueprint skeleton
   - [x] `api/__init__.py` — empty or minimal
-  - [x] `api/routes.py` — Flask Blueprint `bp`, no routes yet, placeholder `GET /` returning 200 "gaz_eye" HTML
+  - [x] `api/routes.py` — Flask Blueprint `bp`, no routes yet, placeholder `GET /` returning 200 "checkov" HTML
 - [x] Task 4: Create `run.sh` launch script
   - [x] Set `FLASK_APP=app.py`, `FLASK_ENV=development`
   - [x] Source `.env` if it exists
@@ -56,7 +56,7 @@ So that I have a working foundation to build all subsequent backend and frontend
 - `api/routes.py` Blueprint pattern: all routes live here, imported and registered in `app.py`
 - `run.sh` is the single dev launch command — sets `FLASK_APP`, `FLASK_ENV`, sources `.env`
 - `GOOGLE_MAPS_API_KEY` loaded via `python-dotenv` from `.env` — if missing, warn to stdout (not stderr) but don't fail
-- `gaz_saver.py` and `stations.yaml` must remain 100% unchanged
+- `checkov.py` and `stations.yaml` must remain 100% unchanged
 
 **Project Context Rules:**
 - Logging over print: use `logging.Logger` with `StreamHandler(sys.stdout)`, `%(message)s` format
@@ -68,7 +68,7 @@ So that I have a working foundation to build all subsequent backend and frontend
 ```python
 @bp.route("/")
 def serve_index():
-    return "<h1>gaz_eye</h1>", 200
+    return "<h1>checkov</h1>", 200
 ```
 This will be replaced in Story 3.1 with Jinja2 template rendering.
 
@@ -76,7 +76,7 @@ This will be replaced in Story 3.1 with Jinja2 template rendering.
 
 ### Implementation Plan
 - Created `app.py` as pure factory using `create_app()` pattern; loads `.env` via python-dotenv, warns on missing API key, registers Blueprint from `api/routes.py`
-- Created `api/__init__.py` (empty) and `api/routes.py` with Flask Blueprint `bp`; `GET /` returns `<h1>gaz_eye</h1>` as placeholder
+- Created `api/__init__.py` (empty) and `api/routes.py` with Flask Blueprint `bp`; `GET /` returns `<h1>checkov</h1>` as placeholder
 - Created `run.sh` with env loading and `FLASK_APP`/`FLASK_ENV` exports; made executable
 - Created `.env.example` with empty `GOOGLE_MAPS_API_KEY=` key
 - Updated `requirements.txt` with `flask==3.1.3` and `python-dotenv`
@@ -86,9 +86,9 @@ This will be replaced in Story 3.1 with Jinja2 template rendering.
 
 ### Completion Notes
 ✅ All ACs satisfied:
-- AC1: Flask starts, `GET /` returns 200 with "gaz_eye", warning printed when `GOOGLE_MAPS_API_KEY` unset
+- AC1: Flask starts, `GET /` returns 200 with "checkov", warning printed when `GOOGLE_MAPS_API_KEY` unset
 - AC2: All required files exist; `app.py` has zero `@app.route` decorators (verified via AST)
-- AC3: `gaz_saver.py` and `stations.yaml` unchanged (git diff clean)
+- AC3: `checkov.py` and `stations.yaml` unchanged (git diff clean)
 
 ## File List
 

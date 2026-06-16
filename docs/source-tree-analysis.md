@@ -1,8 +1,8 @@
-# Source Tree Analysis — gaz_eye
+# Source Tree Analysis — checkov
 
 ```
-gaz_eye/
-├── gaz_saver.py          # Main application — all business logic (270 LOC)
+checkov/
+├── checkov.py          # Main application — all business logic (270 LOC)
 ├── stations.yaml         # User configuration — cities, stations, fuel settings
 ├── requirements.txt      # Python dependencies: requests, pyyaml, colorama
 ├── README.md             # User-facing documentation and quick start guide
@@ -49,5 +49,5 @@ gaz_eye/
 
 ## Entry Points
 
-- **Application:** `gaz_saver.py` → `main()` via `if __name__ == "__main__"`
+- **Application:** `checkov.py` → `main()` via `if __name__ == "__main__"`
 - **Configuration:** `stations.yaml` (user-editable)

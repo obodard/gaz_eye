@@ -1,4 +1,10 @@
-# ⛽ Gaz Saver — Régie Essence Québec
+# ⛽ Checkov — Régie Essence Québec
+
+Checkov is your fuel-price navigator, named after Pavel Chekov, navigator of the Enterprise, because even starships need someone to say, “Keptin, I have found cheaper gas three sectors east.”
+
+This app helps you plot a smarter course through local gas prices, avoid wallet-draining anomalies, and boldly go where the price per litre is slightly less insulting. No warp core required. No red alert unless prices jump again.
+
+Set phasers to savings.
 
 A Python CLI tool to monitor gas prices at specific stations in Quebec. It fetches real-time data from the official [Régie Essence Québec](https://regieessencequebec.ca/) public data source and displays results in a formatted terminal table, grouped by city and sorted by price.
 
@@ -16,7 +22,7 @@ A Python CLI tool to monitor gas prices at specific stations in Quebec. It fetch
 
 3. **Run the script:**
    ```bash
-   python3 gaz_saver.py
+   python3 checkov.py
    ```
 
 ## ⚙️ Configuration (`stations.yaml`)

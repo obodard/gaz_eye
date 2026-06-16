@@ -21,7 +21,7 @@ So that every subsequent frontend story has a complete, consistent visual founda
 ## Tasks / Subtasks
 
 - [x] Task 1: Update `api/routes.py` — replace placeholder `serve_index` with Jinja2 render
-  - [x] Replace `render_template_string("<h1>gaz_eye</h1>")` with `render_template("index.html", google_maps_api_key=current_app.config["GOOGLE_MAPS_API_KEY"])`
+  - [x] Replace `render_template_string("<h1>checkov</h1>")` with `render_template("index.html", google_maps_api_key=current_app.config["GOOGLE_MAPS_API_KEY"])`
   - [x] Add `from flask import current_app, render_template` import
   - [x] Verify `POST /api/plan` route is NOT impacted (it lives alongside this route)
 - [x] Task 2: Create `static/index.html` as Jinja2 template
@@ -49,7 +49,7 @@ So that every subsequent frontend story has a complete, consistent visual founda
   - [x] Store map instance in module-scope variable: `let map = null;`
   - [x] Keep this file minimal for Story 3.1 — full route/marker rendering belongs to Story 3.4
 - [x] Task 5: Create `static/js/state.js`
-  - [x] `const SETTINGS_KEY = "gaz_eye_settings";` — defined once here, never duplicated elsewhere
+  - [x] `const SETTINGS_KEY = "checkov_settings";` — defined once here, never duplicated elsewhere
   - [x] `const DEFAULT_SETTINGS = { fuel_type: "Régulier", tank_litres: 60, corridor_km: 2.0, safety_buffer_km: 15, max_alternatives: 3 };`
   - [x] `const state = { routes: [], selectedRouteIndex: null, settings: null };`
   - [x] `export function loadSettings() { ... }` — reads from localStorage, falls back to DEFAULT_SETTINGS
@@ -79,8 +79,8 @@ from flask import Blueprint, render_template_string
 
 @bp.route("/")
 def serve_index():
-    """Serve the gaz_eye SPA shell (placeholder until Story 3.1)."""
-    return render_template_string("<h1>gaz_eye</h1>"), 200
+    """Serve the checkov SPA shell (placeholder until Story 3.1)."""
+    return render_template_string("<h1>checkov</h1>"), 200
 ```
 
 **This story changes `serve_index` to a real Jinja2 template render:**
@@ -90,7 +90,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 
 @bp.route("/")
 def serve_index():
-    """Serve the gaz_eye SPA shell as a Jinja2 template."""
+    """Serve the checkov SPA shell as a Jinja2 template."""
     return render_template(
         "index.html",
         google_maps_api_key=current_app.config["GOOGLE_MAPS_API_KEY"]
@@ -141,7 +141,7 @@ export function initMap() {
     map = new google.maps.Map(mapEl, {
         center: { lat: 46.8, lng: -71.2 },
         zoom: 7,
-        mapId: "gaz_eye_map",  // Required for AdvancedMarkerElement (Story 3.4)
+        mapId: "checkov_map",  // Required for AdvancedMarkerElement (Story 3.4)
     });
 }
 
@@ -157,7 +157,7 @@ The `DEFAULT_SETTINGS` tank_litres default is **60** (per UX spec settings table
 
 ```javascript
 // state.js
-const SETTINGS_KEY = "gaz_eye_settings";
+const SETTINGS_KEY = "checkov_settings";
 
 const DEFAULT_SETTINGS = {
     fuel_type: "Régulier",
@@ -303,7 +303,7 @@ footer {
 - `app.py` — no changes (template_folder already set to "static")
 - `api/pricing.py` — no changes
 - `api/geo.py` — no changes
-- `gaz_saver.py` — must remain 100% unchanged
+- `checkov.py` — must remain 100% unchanged
 - Existing tests — no changes
 
 ### Previous Story Learnings Applied
@@ -334,7 +334,7 @@ Claude Sonnet 4.6
 
 ### Completion Notes List
 
-- All 7 tasks completed. `api/routes.py` updated to use `render_template` with `current_app.config["GOOGLE_MAPS_API_KEY"]`. Created `static/index.html` as Jinja2 template with all required structure (split-pane layout, settings drawer, all required IDs). Created `static/css/style.css` with all 12 design tokens, viewport layout, split-pane, mobile breakpoints, drawer animation, and loading styles. Created `static/js/state.js` (SETTINGS_KEY, DEFAULT_SETTINGS, loadSettings, saveSettings, setSelectedRoute). Created `static/js/map.js` (initMap, window.initMap at module level, mapId:"gaz_eye_map" for AdvancedMarkerElement). Created `static/js/app.js` (full implementation covering Stories 3.1–3.5). Tests: added `TestServeIndex` (2 tests) to `tests/test_routes.py`; all 70 tests pass.
+- All 7 tasks completed. `api/routes.py` updated to use `render_template` with `current_app.config["GOOGLE_MAPS_API_KEY"]`. Created `static/index.html` as Jinja2 template with all required structure (split-pane layout, settings drawer, all required IDs). Created `static/css/style.css` with all 12 design tokens, viewport layout, split-pane, mobile breakpoints, drawer animation, and loading styles. Created `static/js/state.js` (SETTINGS_KEY, DEFAULT_SETTINGS, loadSettings, saveSettings, setSelectedRoute). Created `static/js/map.js` (initMap, window.initMap at module level, mapId:"checkov_map" for AdvancedMarkerElement). Created `static/js/app.js` (full implementation covering Stories 3.1–3.5). Tests: added `TestServeIndex` (2 tests) to `tests/test_routes.py`; all 70 tests pass.
 
 ### File List
 

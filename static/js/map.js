@@ -61,7 +61,7 @@ export function initMap() {
     map = new google.maps.Map(mapEl, {
         center: { lat: 46.8, lng: -71.2 },
         zoom: 7,
-        mapId: "gaz_eye_map",  // Required for AdvancedMarkerElement
+        mapId: "checkov_map",  // Required for AdvancedMarkerElement
     });
     infoWindow = new google.maps.InfoWindow();
 

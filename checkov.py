@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Gaz Saver — Fetch and display gas prices from Régie Essence Québec.
+Checkov — Fetch and display gas prices from Régie Essence Québec.
 
 Reads a list of stations from stations.yaml, fetches the latest prices
 from the public GeoJSON endpoint, and displays them grouped by city.
@@ -23,7 +23,7 @@ init(autoreset=True)
 
 # Set up logging for generic messaging (instead of print)
 # This will output to stdout making it visible to Docker cron outputs
-logger = logging.getLogger("GazSaver")
+logger = logging.getLogger("Checkov")
 handler = logging.StreamHandler(sys.stdout)
 formatter = logging.Formatter('%(message)s')
 handler.setFormatter(formatter)

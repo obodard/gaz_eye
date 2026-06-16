@@ -24,11 +24,11 @@ changeLog:
     changes: 'PM alignment check after UX review: added FR67 (filter badge with click-to-clear on map) to close gap between UX-DR21 and FR60 chat-only clearing path; updated Epic 5 FRs covered and FR Coverage Map'
 ---
 
-# gaz_eye - Epic Breakdown
+# checkov - Epic Breakdown
 
 ## Overview
 
-This document provides the complete epic and story breakdown for gaz_eye, decomposing the requirements from the PRD, UX Design, and Architecture into implementable stories.
+This document provides the complete epic and story breakdown for checkov, decomposing the requirements from the PRD, UX Design, and Architecture into implementable stories.
 
 ## Requirements Inventory
 
@@ -103,7 +103,7 @@ FR60: User can clear a geographic filter via chat (e.g., "show all stations") to
 FR61: A dedicated Google ADK agent handles all chat interactions, running as a separate service with its own process
 FR62: The Flask backend exposes a `/api/chat` endpoint that proxies user messages to the ADK agent service and relays structured responses to the frontend
 FR63: The ADK agent uses the Gemini API for natural language understanding, intent classification, and parameter extraction
-FR64: The ADK agent defines structured tools (`submit_trip`, `add_waypoint`, `filter_stations_by_area`, `clear_filter`) that map to gaz_eye UI actions
+FR64: The ADK agent defines structured tools (`submit_trip`, `add_waypoint`, `filter_stations_by_area`, `clear_filter`) that map to checkov UI actions
 FR65: The ADK agent returns JSON responses containing `action` (the tool/intent name), `params` (extracted values), and `message` (a human-readable confirmation to display in the chat)
 FR66: The ADK agent maintains conversation context within a session so follow-up messages (e.g., "now add Grenville") resolve against the current trip state without requiring the user to repeat origin/destination
 FR67: When a geographic station filter is active, a filter badge appears on the map container displaying the filtered area name and a clickable "Show all" link; clicking the link clears the filter and restores all station markers without requiring chat interaction
@@ -127,13 +127,13 @@ NFR14: Gemini API key is stored server-side only — consumed by the ADK agent p
 
 ### Additional Requirements
 
-- Brownfield restructuring: Extract `gaz_saver.py` into `api/pricing.py` as an importable module preserving `parse_price_value`, `fetch_stations`, and GeoJSON dual-parse logic verbatim — this is a prerequisite for all other backend work
+- Brownfield restructuring: Extract `checkov.py` into `api/pricing.py` as an importable module preserving `parse_price_value`, `fetch_stations`, and GeoJSON dual-parse logic verbatim — this is a prerequisite for all other backend work
 - Polyline decoding: Use the `polyline` PyPI package (add to `requirements.txt`) instead of implementing the Google Encoded Polyline Algorithm from scratch
 - Google Maps JS API key injection: `GOOGLE_MAPS_API_KEY` (single env var) must be injected into `index.html` at serve time via Jinja2 template rendering — not hardcoded in the static file
 - API key isolation: `GOOGLE_MAPS_API_KEY` loaded from `.env` via `python-dotenv`; never included in any JSON response or frontend-accessible route (Jinja2 injection into the script src tag is the only frontend exposure)
 - `distance_along_route()` semantics: Distance from origin to station is the cumulative distance along the route polyline to the nearest polyline point — not a straight-line distance; must be documented clearly in the implementation story
 - Flask Blueprint pattern: All routes registered in `api/routes.py` via a Blueprint; `app.py` is a pure factory with zero routes
-- Settings defaults: `DEFAULT_SETTINGS` and `SETTINGS_KEY = "gaz_eye_settings"` defined once in `state.js` only — never duplicated elsewhere
+- Settings defaults: `DEFAULT_SETTINGS` and `SETTINGS_KEY = "checkov_settings"` defined once in `state.js` only — never duplicated elsewhere
 - `run.sh` launch script: Sets `FLASK_APP=app.py`, `FLASK_ENV=development`, loads `.env`, runs `flask run`; must warn if `GOOGLE_MAPS_API_KEY` is unset — single key used for both backend Directions API and frontend JS API injection
 - Tests: `tests/` directory at project root with `pytest`; `test_pricing.py`, `test_geo.py`, `test_routes.py`; mock `requests.get` for all network calls
 - `.gitignore` requirements: `.env`, `__pycache__/`, `*.pyc`
@@ -164,7 +164,7 @@ UX-DR12: Implement the initial empty state in the cards panel (before any trip i
 UX-DR13: Implement the inline API error banner inside the cards panel: `bg-red-50 border-red-200 text-red-700` with message "Could not load [source]. Try again." — persistent until resolved, no toast notifications
 UX-DR14: Apply the design token colour system as CSS custom properties: `--bg: #F9FAFB`, `--surface: #FFFFFF`, `--border: #E5E7EB`, `--text-primary: #111827`, `--text-secondary: #6B7280`, `--accent: #16A34A`, `--accent-light: #DCFCE7`, `--warning: #F59E0B`, `--error: #DC2626`
 UX-DR15: Apply Inter (Google Fonts) typography system: drive time `text-2xl font-bold`, savings `text-xl font-bold`, price `text-lg font-semibold`, route label `text-base font-medium`, secondary data `text-sm`, timestamp `text-xs`
-UX-DR16: Implement settings and last trip persistence via localStorage key `gaz_eye_settings`; on page load, pre-populate all form fields (including origin/destination) from last saved values
+UX-DR16: Implement settings and last trip persistence via localStorage key `checkov_settings`; on page load, pre-populate all form fields (including origin/destination) from last saved values
 UX-DR17: Chat panel renders as a collapsible bottom section of the left column; default state is collapsed showing only the input bar (~48px height); expanded state overlays the cards panel up to 60% of available height; a small chevron handle above the input toggles collapse/expand; the panel is visible at all times regardless of trip state
 UX-DR18: Chat user bubbles use `--text-primary` (#111827) background with white text and `border-radius: 12px 12px 0 12px`; assistant bubbles use `--surface` white background with `--border` border and `border-radius: 12px 12px 12px 0`; never use route colours for chat bubbles to avoid false visual association with route cards
 UX-DR19: When chat dispatches an action-bearing response (`submit_trip`, `add_waypoint`), a brief confirmation toast appears at the bottom of the cards panel in `text-sm` `--text-secondary` style; the toast auto-dismisses after 4 seconds; `chat_only`, `filter_stations_by_area`, and `clear_filter` actions do not trigger a toast
@@ -246,11 +246,11 @@ FR67: Epic 5 — `map.js` filter badge on map container when `filterMarkers()` a
 
 ### Epic 1: Project Foundation & Pricing Engine
 
-The Flask application scaffold and the complete Quebec gas station pricing pipeline are operational. `gaz_saver.py` is migrated into an importable `api/pricing.py` module, the Régie Essence GeoJSON can be fetched, parsed (dual-format), filtered by fuel type, and autonomy-filtered against a known driving range. The recommendation engine (cheapest/worst station, savings ¢/L, savings $/tank, route ranking) is fully implemented and unit-tested. The backend structure is in place for all subsequent epics.
+The Flask application scaffold and the complete Quebec gas station pricing pipeline are operational. `checkov.py` is migrated into an importable `api/pricing.py` module, the Régie Essence GeoJSON can be fetched, parsed (dual-format), filtered by fuel type, and autonomy-filtered against a known driving range. The recommendation engine (cheapest/worst station, savings ¢/L, savings $/tank, route ranking) is fully implemented and unit-tested. The backend structure is in place for all subsequent epics.
 
 **FRs covered:** FR11, FR13, FR14, FR15, FR16, FR17, FR18, FR19, FR20, FR21, FR22, FR23
 **NFRs addressed:** NFR5 (API key server-side only), NFR6 (no data persistence beyond local), NFR8 (dual-parse gzip/JSON), NFR9 (User-Agent header)
-**Architecture/UX requirements:** Brownfield extraction of gaz_saver.py → api/pricing.py, Flask Blueprint scaffold, app.py pure factory, run.sh, .env + python-dotenv (single GOOGLE_MAPS_API_KEY), requirements.txt, tests/test_pricing.py
+**Architecture/UX requirements:** Brownfield extraction of checkov.py → api/pricing.py, Flask Blueprint scaffold, app.py pure factory, run.sh, .env + python-dotenv (single GOOGLE_MAPS_API_KEY), requirements.txt, tests/test_pricing.py
 
 ---
 
@@ -300,7 +300,7 @@ Olivier can type natural-language messages in a persistent chat panel to plan tr
 
 ## Epic 1: Project Foundation & Pricing Engine
 
-The Flask application scaffold and the complete Quebec gas station pricing pipeline are operational. `gaz_saver.py` is migrated into an importable `api/pricing.py` module, the Régie Essence GeoJSON can be fetched, parsed (dual-format), filtered by fuel type, and autonomy-filtered against a known driving range. The recommendation engine (cheapest/worst station, savings ¢/L, savings $/tank, route ranking) is fully implemented and unit-tested. The backend structure is in place for all subsequent epics.
+The Flask application scaffold and the complete Quebec gas station pricing pipeline are operational. `checkov.py` is migrated into an importable `api/pricing.py` module, the Régie Essence GeoJSON can be fetched, parsed (dual-format), filtered by fuel type, and autonomy-filtered against a known driving range. The recommendation engine (cheapest/worst station, savings ¢/L, savings $/tank, route ranking) is fully implemented and unit-tested. The backend structure is in place for all subsequent epics.
 
 ### Story 1.1: Flask Project Scaffold
 
@@ -313,18 +313,18 @@ So that I have a working foundation to build all subsequent backend and frontend
 **Given** the repository is cloned and `.env` contains `GOOGLE_MAPS_API_KEY=<any value>`
 **When** I run `./run.sh`
 **Then** Flask starts at `http://localhost:5000` with debug/hot-reload enabled
-**And** `GET /` returns HTTP 200 with placeholder HTML containing "gaz_eye"
+**And** `GET /` returns HTTP 200 with placeholder HTML containing "checkov"
 **And** a startup warning is printed to stdout if `GOOGLE_MAPS_API_KEY` is unset in the environment
 
 **Given** the project structure after this story
 **When** I inspect the repository
 **Then** the following files exist: `app.py` (pure factory, zero `@app.route` decorators), `api/__init__.py`, `api/routes.py` (Blueprint registered in `app.py`, skeleton with no functional routes yet), `run.sh` (executable, sets `FLASK_APP=app.py` and `FLASK_ENV=development`, sources `.env`), `.env.example` (key names with empty values), `.gitignore` (includes `.env`, `__pycache__/`, `*.pyc`), and `requirements.txt` updated to include `flask==3.1.3` and `python-dotenv`
-**And** `gaz_saver.py` and `stations.yaml` are preserved entirely unchanged
+**And** `checkov.py` and `stations.yaml` are preserved entirely unchanged
 
 ### Story 1.2: Pricing Module — GeoJSON Fetch & Price Parsing
 
 As a developer,
-I want the Régie Essence GeoJSON fetch and price parsing logic extracted from `gaz_saver.py` into an importable `api/pricing.py` module,
+I want the Régie Essence GeoJSON fetch and price parsing logic extracted from `checkov.py` into an importable `api/pricing.py` module,
 So that the backend can programmatically access live Quebec gas station data and prices without depending on the CLI entry point.
 
 **Acceptance Criteria:**
@@ -345,8 +345,8 @@ So that the backend can programmatically access live Quebec gas station data and
 **When** `parse_price_value(None)` or `parse_price_value("")` is called
 **Then** it returns `float('inf')` as the sentinel value
 
-**Given** `gaz_saver.py` exists after the extraction
-**When** it is run directly (`python gaz_saver.py`)
+**Given** `checkov.py` exists after the extraction
+**When** it is run directly (`python checkov.py`)
 **Then** it still works correctly — the module extraction does not break the existing CLI
 
 **Given** `tests/test_pricing.py` exists
@@ -540,8 +540,8 @@ So that repeat trips require zero re-entry and I can adjust corridor or fuel pre
 
 **Given** I change any setting value
 **When** the change event fires
-**Then** the new value is immediately written to `localStorage` under key `gaz_eye_settings` — no Save button required
-**And** `DEFAULT_SETTINGS` and `SETTINGS_KEY = "gaz_eye_settings"` are defined only in `state.js` and never duplicated elsewhere
+**Then** the new value is immediately written to `localStorage` under key `checkov_settings` — no Save button required
+**And** `DEFAULT_SETTINGS` and `SETTINGS_KEY = "checkov_settings"` are defined only in `state.js` and never duplicated elsewhere
 
 **Given** I click "Reset to defaults"
 **When** the link is clicked
@@ -763,7 +763,7 @@ So that the filter operates transparently on every trip query, can exclude struc
 **And** no code deploy is required to toggle this behaviour; editing `stations.yaml` is sufficient
 
 **Given** `detect_stale_prices()` excludes a station (sets its price to `float('inf')`)
-**When** the `gaz_eye.pricing` logger emits the exclusion entry
+**When** the `checkov.pricing` logger emits the exclusion entry
 **Then** the log message contains all of: station name, station `price_per_litre` (dollars), local median price (dollars), neighbor count used, radius used (km), and the Régie Essence `data_timestamp`
 **And** the log is emitted at `INFO` level — it does not appear in the API response body
 
@@ -866,7 +866,7 @@ Olivier can type natural-language messages in a persistent chat panel to plan tr
 ### Story 5.1: ADK Agent Definition & Gemini Client
 
 As a developer,
-I want the Google ADK agent package defined with the four gaz_eye tools and the Gemini 2.0 Flash model configured,
+I want the Google ADK agent package defined with the four checkov tools and the Gemini 2.0 Flash model configured,
 So that the ADK service process can be started and will correctly classify intent and extract structured parameters from natural-language trip messages.
 
 **Acceptance Criteria:**
@@ -874,7 +874,7 @@ So that the ADK service process can be started and will correctly classify inten
 **Given** the repository after this story
 **When** I inspect the project structure
 **Then** `agent/__init__.py` exists and exports `root_agent` (the ADK `Agent` instance)
-**And** `agent/agent.py` exists and defines: `SYSTEM_INSTRUCTION` (string constant), four tool functions (`submit_trip`, `add_waypoint`, `filter_stations_by_area`, `clear_filter`), and `root_agent = Agent(name="gaz_eye_assistant", model="gemini-2.0-flash", instruction=SYSTEM_INSTRUCTION, tools=[...])`
+**And** `agent/agent.py` exists and defines: `SYSTEM_INSTRUCTION` (string constant), four tool functions (`submit_trip`, `add_waypoint`, `filter_stations_by_area`, `clear_filter`), and `root_agent = Agent(name="checkov_assistant", model="gemini-2.0-flash", instruction=SYSTEM_INSTRUCTION, tools=[...])`
 **And** `requirements.txt` includes `google-adk>=1.0`
 
 **Given** `agent/agent.py` is inspected
@@ -924,7 +924,7 @@ So that the frontend has a single, stable contract for all chat interactions reg
 **And** the ADK request body is:
 ```json
 {
-  "app_name": "gaz_eye_assistant",
+  "app_name": "checkov_assistant",
   "user_id": "local_user",
   "session_id": "abc-123",
   "new_message": {

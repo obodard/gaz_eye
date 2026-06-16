@@ -7,7 +7,7 @@ done
 ## Story
 
 **As a developer,**
-I want the Régie Essence GeoJSON fetch and price parsing logic extracted from `gaz_saver.py` into an importable `api/pricing.py` module,
+I want the Régie Essence GeoJSON fetch and price parsing logic extracted from `checkov.py` into an importable `api/pricing.py` module,
 So that the backend can programmatically access live Quebec gas station data and prices without depending on the CLI entry point.
 
 ## Acceptance Criteria
@@ -18,7 +18,7 @@ So that the backend can programmatically access live Quebec gas station data and
 
 **AC3:** Given a missing or `None` price value, when `parse_price_value(None)` or `parse_price_value("")` is called, then it returns `float('inf')` as the sentinel value.
 
-**AC4:** Given `gaz_saver.py` exists after the extraction, when it is run directly (`python gaz_saver.py`), then it still works correctly — the module extraction does not break the existing CLI.
+**AC4:** Given `checkov.py` exists after the extraction, when it is run directly (`python checkov.py`), then it still works correctly — the module extraction does not break the existing CLI.
 
 **AC5:** Given `tests/test_pricing.py` exists, when `pytest tests/test_pricing.py` is executed, then all tests pass; `requests.get` is mocked throughout — the live Régie Essence endpoint is never called; tests cover `parse_price_value` with: valid cent-string, `None`, empty string, `¢`-only string, and a string without `¢`.
 
@@ -29,8 +29,8 @@ So that the backend can programmatically access live Quebec gas station data and
   - [x] `fetch_stations(fuel_type)` — fetches GeoJSON from `GEOJSON_URL`, dual-parse (try `json.loads()` first, fall back to `gzip.decompress()`), sends browser-like `User-Agent`, raises exception on failure (no `sys.exit()`); returns list of station dicts with `Address`, `Latitude`, `Longitude`, `price_per_litre` (parsed float), `name`, `lat`, `lng`
   - [x] Stations with `IsAvailable: false` or missing/null price → `price_per_litre = float('inf')`
   - [x] Extract metadata `generated_at` from response root and return it as second value
-- [x] Task 2: Ensure `gaz_saver.py` still works after extraction
-  - [x] Verified `gaz_saver.py` uses its own local `fetch_stations()` (unchanged)
+- [x] Task 2: Ensure `checkov.py` still works after extraction
+  - [x] Verified `checkov.py` uses its own local `fetch_stations()` (unchanged)
 - [x] Task 3: Create `tests/__init__.py` and `tests/test_pricing.py`
   - [x] Tests for `parse_price_value`: all 8 cases covered
   - [x] Tests for `fetch_stations`: happy path, IsAvailable=false, missing fuel type, network exception propagation, gzip fallback, User-Agent header, empty features, brand='Aucun'
@@ -40,10 +40,10 @@ So that the backend can programmatically access live Quebec gas station data and
 ## Dev Notes
 
 **Extraction Strategy:**
-- `api/pricing.py` is a NEW module — it does NOT import from `gaz_saver.py`
-- `gaz_saver.py` stays 100% unchanged — it keeps its own copy of `fetch_stations` (which calls `sys.exit()`) and `parse_price_value`
+- `api/pricing.py` is a NEW module — it does NOT import from `checkov.py`
+- `checkov.py` stays 100% unchanged — it keeps its own copy of `fetch_stations` (which calls `sys.exit()`) and `parse_price_value`
 - The new `api/pricing.py` version of `fetch_stations` RAISES exceptions instead of calling `sys.exit()` — this is the key behavioral difference
-- The new `parse_price_value` takes a raw string (NOT a dict/price_entry like in gaz_saver.py) — simpler interface for the API use case
+- The new `parse_price_value` takes a raw string (NOT a dict/price_entry like in checkov.py) — simpler interface for the API use case
 
 **`parse_price_value` signature in `api/pricing.py`:**
 ```python
@@ -77,10 +77,10 @@ Filter for the matching `fuel_type` (e.g. `"Régulier"`). Use `IsAvailable` to g
 ## Dev Agent Record
 
 ### Implementation Plan
-- Created `api/pricing.py` as a new independent module (does NOT import from `gaz_saver.py`)
+- Created `api/pricing.py` as a new independent module (does NOT import from `checkov.py`)
 - `parse_price_value(price_str)` takes a raw string, strips `¢`/unicode cent, divides by 100; returns `float('inf')` on None/empty/non-numeric
 - `fetch_stations(fuel_type)` returns `(stations_list, data_timestamp)` tuple; raises on network error (no sys.exit); dual-parse gzip/JSON; User-Agent header set
-- `gaz_saver.py` unchanged — still has its own `fetch_stations` that calls `sys.exit()`
+- `checkov.py` unchanged — still has its own `fetch_stations` that calls `sys.exit()`
 - Created `tests/__init__.py` and `tests/test_pricing.py` with 16 tests; all mocked via `unittest.mock.patch`
 
 ### Debug Log
@@ -91,7 +91,7 @@ Filter for the matching `fuel_type` (e.g. `"Régulier"`). Use `IsAvailable` to g
 - AC1: `fetch_stations()` returns list with required fields, sends User-Agent, dual-parse, raises exceptions
 - AC2: `parse_price_value("154.9¢")` → 1.549
 - AC3: `parse_price_value(None)` and `parse_price_value("")` → `float('inf')`
-- AC4: `gaz_saver.py` unchanged (git diff clean, parses without error)
+- AC4: `checkov.py` unchanged (git diff clean, parses without error)
 - AC5: 16 tests in `tests/test_pricing.py`, all passing, no live network calls
 
 ## File List

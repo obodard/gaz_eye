@@ -1,5 +1,5 @@
 """
-gaz_eye geospatial module.
+checkov geospatial module.
 
 Pure geospatial functions: polyline decoding, Haversine distance,
 corridor matching, and route distance. No side effects, no network calls.

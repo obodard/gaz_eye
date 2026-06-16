@@ -18,7 +18,7 @@ So that repeat trips require zero re-entry and I can adjust corridor or fuel pre
 
 **AC4:** Given I click the gear icon, when the settings drawer opens, then a `w-72` panel slides in from the right with 200ms `ease` `translateX` transition; an overlay (`bg-black/20`) covers only the map area (not the cards panel); the drawer contains: Fuel type button-group toggle (Regular / Premium / Diesel), Tank size `<input type="number">` (min 1, max 200), Corridor radius `<input type="range">` (1–10 km) with live value label, Safety buffer `<input type="range">` (5–50 km) with live value label, Max alternatives button-group toggle (2 / 3), and a "Reset to defaults" ghost text link.
 
-**AC5:** Given I change any setting value, when the change event fires, then the new value is immediately written to `localStorage` under key `gaz_eye_settings` — no Save button required; `DEFAULT_SETTINGS` and `SETTINGS_KEY = "gaz_eye_settings"` are defined only in `state.js` and never duplicated elsewhere.
+**AC5:** Given I change any setting value, when the change event fires, then the new value is immediately written to `localStorage` under key `checkov_settings` — no Save button required; `DEFAULT_SETTINGS` and `SETTINGS_KEY = "checkov_settings"` are defined only in `state.js` and never duplicated elsewhere.
 
 **AC6:** Given I click "Reset to defaults", when the link is clicked, then all settings revert to: `fuel_type: "Régulier"`, `tank_litres: 60`, `corridor_km: 2.0`, `safety_buffer_km: 15`, `max_alternatives: 3`; `localStorage` is updated immediately.
 
@@ -69,8 +69,8 @@ So that repeat trips require zero re-entry and I can adjust corridor or fuel pre
   - [x] Safety buffer slider: `input` event → update `#safety-buffer-km-label`, `saveSettings({ safety_buffer_km: parseInt(value) })`
   - [x] Max alternatives buttons: click → update `active` class, `saveSettings({ max_alternatives: parseInt(value) })`
   - [x] Reset defaults: `#reset-settings-btn` click → `saveSettings({ ...DEFAULT_SETTINGS })`, repopulate all drawer inputs from DEFAULT_SETTINGS
-  - [x] Trip field persistence: save `origin`, `destination`, `range_km`, `waypoint` to localStorage on `change` event (separate from settings — use `localStorage.setItem("gaz_eye_trip", JSON.stringify({...}))`)
-  - [x] `initForm()` also loads `gaz_eye_trip` from localStorage to pre-populate trip fields on reload
+  - [x] Trip field persistence: save `origin`, `destination`, `range_km`, `waypoint` to localStorage on `change` event (separate from settings — use `localStorage.setItem("checkov_trip", JSON.stringify({...}))`)
+  - [x] `initForm()` also loads `checkov_trip` from localStorage to pre-populate trip fields on reload
 
 ## Dev Notes
 
@@ -81,10 +81,10 @@ The architecture document is explicit: **no Alpine.js, no Vue, no React**. All i
 ### localStorage Keys
 
 Two separate keys are used:
-- `gaz_eye_settings` (`SETTINGS_KEY` from `state.js`) — fuel type, tank size, corridor, safety buffer, max alternatives
-- `gaz_eye_trip` — trip-specific fields (origin, destination, range_km, waypoint) stored by `app.js`
+- `checkov_settings` (`SETTINGS_KEY` from `state.js`) — fuel type, tank size, corridor, safety buffer, max alternatives
+- `checkov_trip` — trip-specific fields (origin, destination, range_km, waypoint) stored by `app.js`
 
-The `gaz_eye_trip` key is managed in `app.js` directly (it's trip state, not settings). Do NOT put it in `state.js` or use the `saveSettings()` function for it.
+The `checkov_trip` key is managed in `app.js` directly (it's trip state, not settings). Do NOT put it in `state.js` or use the `saveSettings()` function for it.
 
 ### Settings Drawer Positioning
 
@@ -176,7 +176,7 @@ At `< 768px`, the drawer slides up from the bottom (full-width):
 ### What NOT to Touch
 
 - `api/routes.py`, `api/pricing.py`, `api/geo.py` — no changes
-- `gaz_saver.py` — must remain 100% unchanged
+- `checkov.py` — must remain 100% unchanged
 - `static/js/state.js` — no changes (already complete from Story 3.1)
 - `static/js/map.js` — no changes (only `initMap` stub exists)
 
@@ -188,7 +188,7 @@ Claude Sonnet 4.6
 
 ### Completion Notes List
 
-- All 4 tasks complete. Full trip form (origin, destination, range, waypoint add/remove) implemented in `static/index.html`. Settings drawer with all controls (fuel type button-group, tank, corridor slider, safety buffer slider, max alternatives, reset) added to HTML and CSS. `app.js` wired: initForm(), loadSettings(), populateSettingsDrawer(), closeSettingsDrawer(), per-field saveSettings() on change events, trip field persistence via gaz_eye_trip localStorage key.
+- All 4 tasks complete. Full trip form (origin, destination, range, waypoint add/remove) implemented in `static/index.html`. Settings drawer with all controls (fuel type button-group, tank, corridor slider, safety buffer slider, max alternatives, reset) added to HTML and CSS. `app.js` wired: initForm(), loadSettings(), populateSettingsDrawer(), closeSettingsDrawer(), per-field saveSettings() on change events, trip field persistence via checkov_trip localStorage key.
 
 ### File List
 

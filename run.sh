@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run.sh — Launch gaz_eye Flask development server
+# run.sh — Launch checkov Flask development server
 # Usage: ./run.sh
 
 set -e

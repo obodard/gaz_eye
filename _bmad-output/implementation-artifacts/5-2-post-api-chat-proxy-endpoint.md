@@ -19,7 +19,7 @@ so that the frontend has a single, stable contract for all chat interactions reg
 **AC2:** Given a `POST /api/chat` request with body `{"message": "Montréal to Duhamel, 180 km range", "session_id": "abc-123", "is_context_update": false}`, when the endpoint is called with the ADK service running, then Flask proxies to `http://localhost:5001/run` using `requests.post` with `timeout=10`. The ADK request body is:
 ```json
 {
-  "app_name": "gaz_eye_assistant",
+  "app_name": "checkov_assistant",
   "user_id": "local_user",
   "session_id": "abc-123",
   "new_message": {
@@ -94,7 +94,7 @@ The ADK `POST /run` endpoint returns a JSON body with this structure (ADK 2.x):
   "result": "...",
   "events": [
     {
-      "author": "gaz_eye_assistant",
+      "author": "checkov_assistant",
       "content": {
         "parts": [
           { "functionCall": { "name": "submit_trip", "args": { "origin": "Montréal", "destination": "Duhamel", "range_km": 180 } } }
@@ -102,7 +102,7 @@ The ADK `POST /run` endpoint returns a JSON body with this structure (ADK 2.x):
       }
     },
     {
-      "author": "gaz_eye_assistant",
+      "author": "checkov_assistant",
       "content": {
         "parts": [
           { "text": "Planning Montréal → Duhamel with 180 km range — loading routes." }
@@ -125,7 +125,7 @@ The normalization logic must:
 The file already has:
 - `import requests` (used for Google Maps API calls)
 - `bp = Blueprint("api", __name__)` 
-- `logger = logging.getLogger("gaz_eye.routes")`
+- `logger = logging.getLogger("checkov.routes")`
 - Routes: `GET /` (serve_index) and `POST /api/plan` (plan)
 
 The new `/api/chat` route should be added AFTER the existing `/api/plan` route.

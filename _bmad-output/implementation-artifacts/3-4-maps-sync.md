@@ -64,20 +64,20 @@ So that I can compare routes visually and make my selection from either the map 
   - [x] Add `libraries=geometry` to the Maps JS CDN URL in `index.html`: `...&libraries=geometry&callback=initMap`
   - [x] Returns an array of `google.maps.LatLng` objects suitable for `google.maps.Polyline`
 - [x] Task 8: Verify AdvancedMarkerElement map ID requirement
-  - [x] Confirm `mapId: "gaz_eye_map"` is set in `initMap()` (Story 3.1 already does this) — if it was skipped, add it now; AdvancedMarkerElement throws if Map has no `mapId`
+  - [x] Confirm `mapId: "checkov_map"` is set in `initMap()` (Story 3.1 already does this) — if it was skipped, add it now; AdvancedMarkerElement throws if Map has no `mapId`
 
 ## Dev Notes
 
 ### AdvancedMarkerElement Requires mapId
 
-`google.maps.marker.AdvancedMarkerElement` is the modern replacement for the deprecated `google.maps.Marker`. It **requires** the parent `Map` to be instantiated with a `mapId`. This was documented as critical in Story 3.1. If Story 3.1 dev forgot to set `mapId: "gaz_eye_map"` in `initMap()`, fix it here before adding markers.
+`google.maps.marker.AdvancedMarkerElement` is the modern replacement for the deprecated `google.maps.Marker`. It **requires** the parent `Map` to be instantiated with a `mapId`. This was documented as critical in Story 3.1. If Story 3.1 dev forgot to set `mapId: "checkov_map"` in `initMap()`, fix it here before adding markers.
 
 ```javascript
 // map.js — initMap() must include mapId
 map = new google.maps.Map(mapEl, {
     center: { lat: 46.8, lng: -71.2 },
     zoom: 7,
-    mapId: "gaz_eye_map",  // REQUIRED for AdvancedMarkerElement
+    mapId: "checkov_map",  // REQUIRED for AdvancedMarkerElement
 });
 ```
 
@@ -217,7 +217,7 @@ const ROUTE_COLOURS = [
 - ✅ `state.setSelectedRoute()` is the trigger for ALL selection changes — polyline clicks call it
 - ✅ `document.addEventListener("routeSelected", ...)` in `map.js` for receiving selection updates
 - ✅ `AdvancedMarkerElement` used (not deprecated `google.maps.Marker`)
-- ✅ `mapId: "gaz_eye_map"` set in Map constructor
+- ✅ `mapId: "checkov_map"` set in Map constructor
 - ✅ Only `best_station` per route shown as a marker (not all reachable stations)
 - ✅ Route colours from `ROUTE_COLOURS` hex array (matching CSS custom properties)
 - ✅ `clearRoutes()` called on each new trip submission to avoid stale polylines/markers
@@ -226,7 +226,7 @@ const ROUTE_COLOURS = [
 ### What NOT to Touch
 
 - `api/routes.py`, `api/pricing.py`, `api/geo.py` — no changes
-- `gaz_saver.py` — must remain 100% unchanged
+- `checkov.py` — must remain 100% unchanged
 - `static/js/state.js` — no changes (already complete)
 - `static/css/style.css` — minimal/no changes needed for this story
 - Existing tests — no changes

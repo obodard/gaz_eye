@@ -1,25 +1,25 @@
 ---
-title: "Product Brief: Gaz Eye"
+title: "Product Brief: Checkov"
 status: "complete"
 created: "2026-04-30"
 updated: "2026-04-30"
 inputs:
-  - gaz_saver.py
+  - checkov.py
   - stations.yaml
   - docs/project-overview.md
   - docs/architecture.md
   - _bmad-output/project-context.md
 ---
 
-# Product Brief: Gaz Eye
+# Product Brief: Checkov
 
 ## Executive Summary
 
 Quebec drivers face an invisible tax every time they fill up on the road: they stop at whichever station is convenient, not whichever station is cheapest. The price difference between two stations 20 km apart on the same highway can be 8–12 cents per litre — $4–6 per tank, hundreds of dollars per year on a regular commute.
 
-Gaz Eye is a personal web application that eliminates this guesswork. Enter your trip origin, destination, and remaining driving range. The app presents three alternative routes via Google Maps — including cross-province options (e.g., Montréal to Duhamel via Hawkesbury, ON vs. Highway 50 vs. Highway 15) — each annotated with the cheapest reachable Quebec gas station along that corridor and the estimated fuel cost. You choose the route that best balances drive time, traffic, and fuel savings — in a single screen.
+Checkov is a personal web application that eliminates this guesswork. Enter your trip origin, destination, and remaining driving range. The app presents three alternative routes via Google Maps — including cross-province options (e.g., Montréal to Duhamel via Hawkesbury, ON vs. Highway 50 vs. Highway 15) — each annotated with the cheapest reachable Quebec gas station along that corridor and the estimated fuel cost. You choose the route that best balances drive time, traffic, and fuel savings — in a single screen.
 
-The tool builds on an existing, proven CLI utility that already fetches real-time pricing from the Régie de l'énergie du Québec's public dataset — covering every gas station in the province, with GPS coordinates and current prices. Gaz Eye evolves this battle-tested pricing engine from a manual price-checker into an intelligent, route-aware trip advisor. Routes that cross into Ontario will show Quebec stations only — the user can factor in known cross-border price differences (typically ~5¢/L cheaper in Ontario) at their own discretion.
+The tool builds on an existing, proven CLI utility that already fetches real-time pricing from the Régie de l'énergie du Québec's public dataset — covering every gas station in the province, with GPS coordinates and current prices. Checkov evolves this battle-tested pricing engine from a manual price-checker into an intelligent, route-aware trip advisor. Routes that cross into Ontario will show Quebec stations only — the user can factor in known cross-border price differences (typically ~5¢/L cheaper in Ontario) at their own discretion.
 
 ## The Problem
 
@@ -35,7 +35,7 @@ The result: most of the time, you just stop wherever is convenient and pay whate
 
 ## The Solution
 
-Gaz Eye is a locally-hosted web application that combines route planning and fuel optimization into a single view:
+Checkov is a locally-hosted web application that combines route planning and fuel optimization into a single view:
 
 1. **Input:** Origin, destination, remaining driving range (km), and optional intermediate waypoints to force a route through a specific location (e.g., "stop by Grenville")
 2. **Routes:** Fetches 3 alternative routes via Google Maps Directions API, showing drive time and traffic conditions
@@ -49,7 +49,7 @@ The user sees three routes — each with drive time, best fuel stop, and savings
 ## What Makes This Different
 
 - **Quebec-native data advantage.** The Régie de l'énergie publishes prices for every gas station in the province — a government-mandated, free, reliable dataset with no API key required. No scraping, no stale crowd-sourced reports. The GeoJSON endpoint is confirmed public and unauthenticated (requires only a standard User-Agent header).
-- **Route-first, not station-first.** Unlike GasBuddy or Waze fuel features that show nearby cheap stations, Gaz Eye shows the cheapest station *on your actual driving path*. The question isn't "where's cheap gas near me?" — it's "which route has the cheapest gas?"
+- **Route-first, not station-first.** Unlike GasBuddy or Waze fuel features that show nearby cheap stations, Checkov shows the cheapest station *on your actual driving path*. The question isn't "where's cheap gas near me?" — it's "which route has the cheapest gas?"
 - **Three routes, one decision.** By presenting route alternatives with fuel costs baked in, the app turns a multi-tool decision into a single-screen comparison. You weigh time, traffic, and fuel cost together.
 - **Zero curation.** No maintaining a list of favorite stations. Every station along every route is discovered automatically from the full provincial dataset.
 - **Fully local, fully private.** Runs on your laptop — no accounts, no cloud, no location tracking. Your trip data never leaves your machine.
@@ -95,7 +95,7 @@ The tool runs locally on a macOS laptop. No multi-user infrastructure, authentic
 
 ## Technical Approach (High-Level)
 
-- **Backend:** Python — reuses the existing pricing pipeline from `gaz_saver.py` (GeoJSON fetch, price parsing, delta calculations)
+- **Backend:** Python — reuses the existing pricing pipeline from `checkov.py` (GeoJSON fetch, price parsing, delta calculations)
 - **Frontend:** Web-based (framework TBD during architecture phase) with embedded Google Maps for route and station visualization
 - **Routing API:** Google Maps Directions API (~$5/1,000 requests; at personal usage of a few queries/day, cost is negligible — well under $10/year)
 - **Geospatial matching:** Haversine distance from decoded route polyline waypoints to station GPS coordinates in the GeoJSON dataset

@@ -1,4 +1,4 @@
-# Project Documentation Index — gaz_eye
+# Project Documentation Index — checkov
 
 ## Project Overview
 
@@ -10,7 +10,7 @@
 ### Quick Reference
 
 - **Tech Stack:** Python + requests + pyyaml + colorama
-- **Entry Point:** `gaz_saver.py` → `main()`
+- **Entry Point:** `checkov.py` → `main()`
 - **Configuration:** `stations.yaml`
 - **Data Source:** Régie Essence Québec public GeoJSON (no API key)
 
@@ -35,5 +35,5 @@
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python3 gaz_saver.py
+python3 checkov.py
 ```

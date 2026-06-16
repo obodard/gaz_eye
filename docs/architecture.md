@@ -1,13 +1,13 @@
-# Architecture — gaz_eye
+# Architecture — checkov
 
 ## Architecture Pattern
 
-Single-file functional CLI. No classes, no OOP. All logic resides in `gaz_saver.py` (~270 LOC) with pure functions and a linear execution pipeline.
+Single-file functional CLI. No classes, no OOP. All logic resides in `checkov.py` (~270 LOC) with pure functions and a linear execution pipeline.
 
 ## Module Structure
 
 ```
-gaz_saver.py
+checkov.py
 ├── Constants
 │   ├── GEOJSON_URL        # Data source endpoint
 │   └── CONFIG_FILE        # Path to stations.yaml (relative to script)
@@ -89,6 +89,6 @@ settings:                        # Optional
 
 ## Logging
 
-- Single logger named `"GazSaver"` writing to `sys.stdout`
+- Single logger named `"Checkov"` writing to `sys.stdout`
 - Format: `%(message)s` only (no timestamps, no log levels in output)
 - Colorama tokens embedded in messages for terminal highlighting
