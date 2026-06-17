@@ -1,6 +1,6 @@
-# ⛽ Checkov — Régie Essence Québec
+# ⛽ Chekov — Régie Essence Québec
 
-Checkov is your fuel-price navigator, named after Pavel Chekov, navigator of the Enterprise, because even starships need someone to say, “Keptin, I have found cheaper gas three sectors east.”
+Chekov is your fuel-price navigator, named after Pavel Chekov, navigator of the Enterprise, because even starships need someone to say, “Keptin, I have found cheaper gas three sectors east.”
 More seriously, it's a locally hosted web app for planning fuel-efficient road trips in Quebec. It combines Google Maps routing with live Régie Essence Québec fuel prices, then compares up to three route alternatives by drive time, reachable stations, and estimated fuel savings.
 
 The app is built for a single local user. It runs a Flask backend, a vanilla JavaScript SPA, and an optional Gemini-powered Google ADK assistant.
@@ -90,12 +90,12 @@ The backend fetches Régie Essence data before calling Google Maps, so Régie fa
 
 ## Legacy CLI
 
-`checkov.py` remains in the repository as a standalone CLI. The current web app does not import it; the canonical pricing pipeline for the web app is `api/pricing.py`.
+`chekov.py` remains in the repository as a standalone CLI. The current web app does not import it; the canonical pricing pipeline for the web app is `api/pricing.py`.
 
 Run the legacy CLI with:
 
 ```bash
-python3 checkov.py
+python3 chekov.py
 ```
 
 ## Project Status

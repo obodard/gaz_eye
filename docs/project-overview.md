@@ -1,8 +1,8 @@
-# Project Overview — checkov
+# Project Overview — chekov
 
 ## Executive Summary
 
-**Checkov** is a Python CLI tool that monitors gas prices at specific stations in Quebec. It fetches real-time data from the official [Régie Essence Québec](https://regieessencequebec.ca/) public GeoJSON endpoint and displays results in a formatted, color-coded terminal table grouped by city and sorted by price.
+**Chekov** is a Python CLI tool that monitors gas prices at specific stations in Quebec. It fetches real-time data from the official [Régie Essence Québec](https://regieessencequebec.ca/) public GeoJSON endpoint and displays results in a formatted, color-coded terminal table grouped by city and sorted by price.
 
 ## Repository Type
 
@@ -20,13 +20,13 @@
 
 ## Architecture Pattern
 
-**Single-file functional CLI** — All logic in `checkov.py` with a `main()` entry point guarded by `if __name__ == "__main__"`. No classes, no module/package structure. Functions follow a pipeline: load config → fetch data → index stations → display results.
+**Single-file functional CLI** — All logic in `chekov.py` with a `main()` entry point guarded by `if __name__ == "__main__"`. No classes, no module/package structure. Functions follow a pipeline: load config → fetch data → index stations → display results.
 
 ## Key Files
 
 | File              | Purpose                                                  |
 |-------------------|----------------------------------------------------------|
-| `checkov.py`    | Main application — all business logic (270 LOC)          |
+| `chekov.py`    | Main application — all business logic (270 LOC)          |
 | `stations.yaml`   | User configuration — cities, stations, settings          |
 | `requirements.txt` | Python dependencies (3 packages, no version pins)       |
 | `README.md`       | User-facing documentation                                |

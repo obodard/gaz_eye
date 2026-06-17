@@ -197,7 +197,7 @@ Stations coming from `fetch_stations()` in `api/pricing.py` have this shape:
 - `api/pricing.py` — no changes required
 - `api/routes.py` — no changes required
 - `tests/test_pricing.py` — no changes required
-- `checkov.py` — must remain 100% unchanged
+- `chekov.py` — must remain 100% unchanged
 - The existing `decode_polyline` and `haversine` tests in `tests/test_geo.py` — do not delete or modify them
 
 ## Dev Agent Record

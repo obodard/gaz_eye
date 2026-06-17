@@ -1,5 +1,5 @@
 """
-checkov geospatial module.
+chekov geospatial module.
 
 Pure geospatial functions: polyline decoding, Haversine distance,
 corridor matching, and route distance. No side effects, no network calls.

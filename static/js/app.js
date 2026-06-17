@@ -1,5 +1,5 @@
 /**
- * checkov SPA entry point.
+ * chekov SPA entry point.
  * Owns: form interaction, settings persistence, API calls, route card rendering,
  * error/reachability banners, loading states, and edge-case handling.
  */
@@ -11,7 +11,7 @@ import { renderRoutes, renderMarkers, clearRoutes } from "./map.js";
 const ROUTE_COLOURS = ["var(--route-1)", "var(--route-2)", "var(--route-3)"];
 
 // localStorage key for trip fields (separate from settings)
-const TRIP_KEY = "checkov_trip";
+const TRIP_KEY = "chekov_trip";
 
 // User-facing error messages keyed by API error code
 const ERROR_MESSAGES = {

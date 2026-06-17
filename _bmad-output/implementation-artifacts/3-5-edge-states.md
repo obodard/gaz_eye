@@ -219,7 +219,7 @@ async function submitTrip(body) {
 ### What NOT to Touch
 
 - `api/routes.py`, `api/pricing.py`, `api/geo.py` — no changes
-- `checkov.py` — must remain 100% unchanged
+- `chekov.py` — must remain 100% unchanged
 - `static/js/state.js`, `static/js/map.js` — no changes needed for this story
 - Existing tests — no changes
 

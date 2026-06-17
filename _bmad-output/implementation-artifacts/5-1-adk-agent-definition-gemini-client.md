@@ -9,12 +9,12 @@ Status: review
 ## Story
 
 As a developer,
-I want the Google ADK agent package defined with the four checkov tools and the Gemini 2.0 Flash model configured,
+I want the Google ADK agent package defined with the four chekov tools and the Gemini 2.0 Flash model configured,
 so that the ADK service process can be started and will correctly classify intent and extract structured parameters from natural-language trip messages.
 
 ## Acceptance Criteria
 
-**AC1:** Given the repository after this story, when I inspect the project structure, then `agent/__init__.py` exists and exports `root_agent` (the ADK `Agent` instance), and `agent/agent.py` exists and defines: `SYSTEM_INSTRUCTION` (string constant), four tool functions (`submit_trip`, `add_waypoint`, `filter_stations_by_area`, `clear_filter`), and `root_agent = Agent(name="checkov_assistant", model="gemini-2.0-flash", instruction=SYSTEM_INSTRUCTION, tools=[...])`. `requirements.txt` includes `google-adk>=1.0`.
+**AC1:** Given the repository after this story, when I inspect the project structure, then `agent/__init__.py` exists and exports `root_agent` (the ADK `Agent` instance), and `agent/agent.py` exists and defines: `SYSTEM_INSTRUCTION` (string constant), four tool functions (`submit_trip`, `add_waypoint`, `filter_stations_by_area`, `clear_filter`), and `root_agent = Agent(name="chekov_assistant", model="gemini-2.0-flash", instruction=SYSTEM_INSTRUCTION, tools=[...])`. `requirements.txt` includes `google-adk>=1.0`.
 
 **AC2:** Given `agent/agent.py` is inspected, when the four tool functions are read, then:
 - `submit_trip(origin, destination, range_km=None, waypoints=None)` accepts the four trip parameters and returns `{"ok": True}`
@@ -75,7 +75,7 @@ The latest `google-adk` on PyPI is **2.1.0** (released 2026-05-22). ADK 2.0 has 
 from google.adk import Agent
 
 root_agent = Agent(
-    name="checkov_assistant",
+    name="chekov_assistant",
     model="gemini-2.0-flash",
     instruction=SYSTEM_INSTRUCTION,
     tools=[submit_trip, add_waypoint, filter_stations_by_area, clear_filter],

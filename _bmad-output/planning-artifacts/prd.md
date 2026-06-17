@@ -19,7 +19,7 @@ stepsCompleted:
   - step-e-03-edit
 releaseMode: phased
 inputDocuments:
-  - _bmad-output/planning-artifacts/product-brief-checkov.md
+  - _bmad-output/planning-artifacts/product-brief-chekov.md
   - _bmad-output/planning-artifacts/product-brief-stale-price-filter.md
   - _bmad-output/project-context.md
   - docs/project-overview.md
@@ -45,19 +45,19 @@ editHistory:
   - date: '2026-05-31'
     changes: 'PM alignment check after UX review: added FR67 (filter badge with click-to-clear on map) to close gap between UX-DR21 and FR60 chat-only clearing path'
   - date: '2026-06-01'
-    changes: 'Architecture Enhancement Initiative (2026-05-31 review): Architecture Principles section added; FR68–FR75 (Operational Foundations + Agent Contract & Honesty); NFR15–NFR16 (frontend modularity); Technical Success + MVP scope updated; checkov.py references removed; Architecture Principles endorsed (mapping/pricing stay deterministic, agent-callable explanations deferred as future bet)'
+    changes: 'Architecture Enhancement Initiative (2026-05-31 review): Architecture Principles section added; FR68–FR75 (Operational Foundations + Agent Contract & Honesty); NFR15–NFR16 (frontend modularity); Technical Success + MVP scope updated; chekov.py references removed; Architecture Principles endorsed (mapping/pricing stay deterministic, agent-callable explanations deferred as future bet)'
 ---
 
-# Product Requirements Document - checkov
+# Product Requirements Document - chekov
 
 **Author:** Olivier
 **Date:** 2026-04-30
 
 ## Executive Summary
 
-Checkov is a locally-hosted web application that optimizes fuel costs for road trips in Quebec. It replaces a fragmented workflow — Google Maps for routing, Régie Essence Québec for prices, mental arithmetic for range — with a single screen. The user enters an origin, destination, and remaining driving range; the app returns three alternative routes (including cross-province options via Ontario), each annotated with the cheapest reachable Quebec gas station and estimated savings.
+Chekov is a locally-hosted web application that optimizes fuel costs for road trips in Quebec. It replaces a fragmented workflow — Google Maps for routing, Régie Essence Québec for prices, mental arithmetic for range — with a single screen. The user enters an origin, destination, and remaining driving range; the app returns three alternative routes (including cross-province options via Ontario), each annotated with the cheapest reachable Quebec gas station and estimated savings.
 
-The product grew from an existing Python CLI (`checkov.py`) that fetched and parsed real-time gas pricing from the Régie de l'énergie du Québec's public GeoJSON dataset. That CLI has since been superseded: its pricing logic lives in `api/pricing.py`, the canonical Régie Essence integration. The web product adds route-aware station discovery, fuel autonomy constraints, waypoint support, an interactive map, and a conversational assistant.
+The product grew from an existing Python CLI (`chekov.py`) that fetched and parsed real-time gas pricing from the Régie de l'énergie du Québec's public GeoJSON dataset. That CLI has since been superseded: its pricing logic lives in `api/pricing.py`, the canonical Régie Essence integration. The web product adds route-aware station discovery, fuel autonomy constraints, waypoint support, an interactive map, and a conversational assistant.
 
 **Target user:** The developer (single user), driving urban, inter-city, and cross-province routes in Quebec — primarily the Montréal ↔ Duhamel / Mont-Tremblant corridor (~200 km), with Ontario route alternatives via Hawkesbury.
 
@@ -69,7 +69,7 @@ The product grew from an existing Python CLI (`checkov.py`) that fetched and par
 - **Waypoint flexibility.** Force a route through a specific location (e.g., Grenville) and compare it against Google's alternatives — factoring in fuel cost for each option.
 - **Fully private.** Runs locally on a laptop — no accounts, no cloud, no location tracking.
 - **Talk to your trip.** A conversational assistant powered by Gemini lets the user modify routes, add waypoints, filter station markers, or start a trip entirely in natural language — no form clicking required. The assistant is a dedicated Google ADK agent that interprets intent and dispatches structured actions to the existing trip engine.
-- **Data you can trust.** Before recommendations are built, every station's price is validated against its geographic neighbors. Stations priced anomalously below **or above** the local median (likely stale Régie listings) are silently excluded in both directions — preventing inflated savings from unrealistically cheap stations, and preventing the worst-station benchmark from being set by a stale high-price outlier. Known structural discounters (Costco, Olco) are explicitly exempted in both directions. The most expensive non-anomalous reachable station is displayed on the map as a distinct red marker, giving immediate visual context for the savings spread on each route. Competitors cannot do this without an extra network call or cache layer; checkov already holds the full dataset in memory.
+- **Data you can trust.** Before recommendations are built, every station's price is validated against its geographic neighbors. Stations priced anomalously below **or above** the local median (likely stale Régie listings) are silently excluded in both directions — preventing inflated savings from unrealistically cheap stations, and preventing the worst-station benchmark from being set by a stale high-price outlier. Known structural discounters (Costco, Olco) are explicitly exempted in both directions. The most expensive non-anomalous reachable station is displayed on the map as a distinct red marker, giving immediate visual context for the savings spread on each route. Competitors cannot do this without an extra network call or cache layer; chekov already holds the full dataset in memory.
 
 ## Project Classification
 
@@ -102,7 +102,7 @@ The product grew from an existing Python CLI (`checkov.py`) that fetched and par
 - All service endpoint addresses (ADK service URL, any future integrations) are externalized to environment variables; no service address is hardcoded in source
 - 100% of `/api/plan` and `/api/chat` responses carry a unique request correlation ID echoed in backend logs
 - Chat transcript contains zero auto-generated "user" messages; the assistant reads trip state via a `get_current_trip()` tool call when needed
-- `checkov.py` is deleted; `api/pricing.py` is the single Régie Essence integration point
+- `chekov.py` is deleted; `api/pricing.py` is the single Régie Essence integration point
 - No single JavaScript file exceeds 400 LOC; `app.js` is split into focused modules
 
 ### Measurable Outcomes
@@ -152,7 +152,7 @@ The product grew from an existing Python CLI (`checkov.py`) that fetched and par
 - Single-source agent action contract — one schema definition drives ADK tool stubs, backend validation, and frontend dispatch for all 4 agent actions
 - Schema validation on `/api/plan` and `/api/chat` boundaries with structured error responses
 - `app.js` split into focused modules (≤400 LOC per file) as a dedicated modularization story
-- `checkov.py` deleted — `api/pricing.py` is the sole Régie Essence integration
+- `chekov.py` deleted — `api/pricing.py` is the sole Régie Essence integration
 
 ### Phase 2 (Growth)
 
@@ -175,7 +175,7 @@ The product grew from an existing Python CLI (`checkov.py`) that fetched and par
 
 **Olivier** is leaving work in Montréal on a Friday evening, heading to his place near Duhamel for the weekend. His car shows about 180 km of range — enough to get there, but tight. He usually stops for gas somewhere along the way, but doesn't know which route has the best prices tonight.
 
-He opens Checkov on his laptop before leaving. Types "Montréal" as origin, "Duhamel" as destination, enters 180 km remaining range. The app loads three routes: Highway 50, Highway 15 through the Laurentians, and the cross-border route via Hawkesbury, ON.
+He opens Chekov on his laptop before leaving. Types "Montréal" as origin, "Duhamel" as destination, enters 180 km remaining range. The app loads three routes: Highway 50, Highway 15 through the Laurentians, and the cross-border route via Hawkesbury, ON.
 
 Each route shows drive time, traffic conditions, and a recommended fuel stop with price. Highway 50 has a station at 1.42$/L near Lachute. The Hawkesbury route shows no Quebec station pricing on the Ontario segment — but the cheapest Quebec station before crossing is 1.45$/L. Highway 15 has a cluster of stations near Sainte-Agathe at 1.48$/L.
 
@@ -191,7 +191,7 @@ Each route shows its best fuel stop. The Grenville-area route has a station at 1
 
 ### Journey 3: Low Fuel Urgency (Autonomy Constraint)
 
-Olivier is already on the road near Brownsburg-Chatham with only 45 km of range left. He pulls over, opens Checkov on his phone's browser (the laptop is running the server at home — he connects via local network, or he could have started it before leaving).
+Olivier is already on the road near Brownsburg-Chatham with only 45 km of range left. He pulls over, opens Chekov on his phone's browser (the laptop is running the server at home — he connects via local network, or he could have started it before leaving).
 
 He enters his current location, destination "Mont-Tremblant", range "45 km". The app filters aggressively — most stations are out of range. Only 3 stations across all routes are reachable within the safety buffer (10% = 4.5 km margin).
 
@@ -205,7 +205,7 @@ Three short urban routes appear — all under 30 minutes. Each has multiple stat
 
 ### Journey 5: Chat-Initiated Trip (Conversational Start)
 
-Olivier opens Checkov and instead of filling the form, types into the chat panel: *"Montréal to Duhamel, 180 km range."*
+Olivier opens Chekov and instead of filling the form, types into the chat panel: *"Montréal to Duhamel, 180 km range."*
 
 The ADK agent extracts origin ("Montréal"), destination ("Duhamel"), and range (180 km). The form fields populate automatically and the plan request fires — no clicking required. Three routes appear on the map with fuel recommendations, exactly as if Olivier had filled the form manually.
 
@@ -288,7 +288,7 @@ Locally-hosted single-page web application (SPA) serving one user on a macOS lap
 - A dedicated Google ADK agent runs as a separate process/service alongside the Flask backend
 - The agent is built with the Google Agent Development Kit (ADK) and uses the Gemini API for natural language understanding
 - The agent exposes a local API (HTTP or gRPC) that the Flask backend proxies to via `/api/chat`
-- The agent defines structured tools corresponding to checkov actions:
+- The agent defines structured tools corresponding to chekov actions:
   - **submit_trip**: extract origin, destination, range, and optional waypoints from natural language → return structured parameters
   - **add_waypoint**: extract a location name → return the waypoint to append
   - **filter_stations_by_area**: extract a geographic area name → return a filter descriptor (area name + approximate coordinates)
@@ -298,7 +298,7 @@ Locally-hosted single-page web application (SPA) serving one user on a macOS lap
 
 ### Implementation Considerations
 
-- `checkov.py` has been deleted; `api/pricing.py` is the canonical Régie Essence client — do not reintroduce the standalone CLI
+- `chekov.py` has been deleted; `api/pricing.py` is the canonical Régie Essence client — do not reintroduce the standalone CLI
 - Existing functional style (no classes) can be preserved for the backend logic layer
 - New web-serving layer on top (Flask, FastAPI, or similar — TBD in architecture)
 - Google Maps JavaScript API loaded in frontend for map rendering
@@ -446,7 +446,7 @@ Locally-hosted single-page web application (SPA) serving one user on a macOS lap
 - FR61: A dedicated Google ADK agent handles all chat interactions, running as a separate service with its own process
 - FR62: The Flask backend exposes a `/api/chat` endpoint that proxies user messages to the ADK agent service and relays structured responses to the frontend
 - FR63: The ADK agent uses the Gemini API for natural language understanding, intent classification, and parameter extraction
-- FR64: The ADK agent defines structured tools (`submit_trip`, `add_waypoint`, `filter_stations_by_area`, `clear_filter`) that map to checkov UI actions
+- FR64: The ADK agent defines structured tools (`submit_trip`, `add_waypoint`, `filter_stations_by_area`, `clear_filter`) that map to chekov UI actions
 - FR65: The ADK agent returns JSON responses containing `action` (the tool/intent name), `params` (extracted values), and `message` (a human-readable confirmation to display in the chat)
 - FR66: The ADK agent maintains conversation context within a session so follow-up messages (e.g., "now add Grenville") resolve against the current trip state without requiring the user to repeat origin/destination
 

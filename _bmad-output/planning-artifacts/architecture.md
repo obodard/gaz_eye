@@ -26,7 +26,7 @@ updateHistory:
     changes: 'Absorbed architecture-review-2026-05-31 (Winston): added health scorecard, backend/frontend/cross-cutting findings with severity, tiered recommendations (§8), architectural decision on mapping vs ADK pattern (§3), critical issues list, anti-pattern note on three-place action duplication (§4)'
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
-  - _bmad-output/planning-artifacts/product-brief-checkov.md
+  - _bmad-output/planning-artifacts/product-brief-chekov.md
   - _bmad-output/planning-artifacts/ux-design-specification.md
   - _bmad-output/project-context.md
   - docs/architecture.md
@@ -34,14 +34,14 @@ inputDocuments:
   - docs/project-overview.md
   - docs/source-tree-analysis.md
 workflowType: 'architecture'
-project_name: 'checkov'
+project_name: 'chekov'
 user_name: 'Olivier'
 date: '2026-04-30'
 ---
 
 # Architecture Decision Document
 
-_checkov is a locally-hosted, single-user Flask + Vanilla JS web application that recommends fuel-efficient road trips across Quebec by combining Google Maps routing with live Régie Essence pricing data and a Gemini-powered conversational assistant. This document records all architectural decisions, module boundaries, naming conventions, data flows, and implementation constraints for the project. It covers 66 functional requirements across Epics 1–5, and incorporates health findings and tiered recommendations from the 2026-05-31 architecture review (§8). Last updated 2026-06-15._
+_chekov is a locally-hosted, single-user Flask + Vanilla JS web application that recommends fuel-efficient road trips across Quebec by combining Google Maps routing with live Régie Essence pricing data and a Gemini-powered conversational assistant. This document records all architectural decisions, module boundaries, naming conventions, data flows, and implementation constraints for the project. It covers 66 functional requirements across Epics 1–5, and incorporates health findings and tiered recommendations from the 2026-05-31 architecture review (§8). Last updated 2026-06-15._
 
 ## Table of Contents
 
@@ -82,7 +82,7 @@ _checkov is a locally-hosted, single-user Flask + Vanilla JS web application tha
 
 ### Technical Constraints & Dependencies
 
-- **Brownfield:** `checkov.py` (270 LOC) must be extracted from a runnable script into an importable Python module; `parse_price_value`, `fetch_stations`, and GeoJSON dual-parse logic are reused verbatim
+- **Brownfield:** `chekov.py` (270 LOC) must be extracted from a runnable script into an importable Python module; `parse_price_value`, `fetch_stations`, and GeoJSON dual-parse logic are reused verbatim
 - **API key isolation:** Google Maps Directions API key must remain server-side — never exposed in frontend JavaScript or network responses
 - **GeoJSON dual-parse:** Régie Essence endpoint may return pre-decompressed JSON or raw gzip — dual-parse strategy must be preserved from existing code
 - **Google Maps JS API ToS:** Map rendering uses the JavaScript API (compliant); Directions calls are backend-only
@@ -127,7 +127,7 @@ app.py                # Flask application entry point
 api/
   routes.py           # @app.route endpoint handlers
   geo.py              # Polyline decoding + Haversine corridor matching (net-new)
-  pricing.py          # Extracted from checkov.py: fetch_stations, parse_price_value
+  pricing.py          # Extracted from chekov.py: fetch_stations, parse_price_value
 static/
   index.html          # SPA shell
   js/
@@ -145,7 +145,7 @@ Settings (fuel type, tank size, corridor, buffer) persisted via `localStorage`.
 
 **Development:** `flask --app app run --debug` (hot reload enabled)
 
-**Note:** Project restructuring (extracting `checkov.py` into `api/pricing.py` and
+**Note:** Project restructuring (extracting `chekov.py` into `api/pricing.py` and
 creating `app.py`) should be the first implementation story.
 
 ## Core Architectural Decisions
@@ -233,7 +233,7 @@ Mapping is deterministic input → deterministic output. Given an origin, destin
 ### Decision Impact Analysis
 
 **Implementation Sequence (ordered by dependency):**
-1. Extract `api/pricing.py` from `checkov.py` (prerequisite for everything)
+1. Extract `api/pricing.py` from `chekov.py` (prerequisite for everything)
 2. Create `app.py` + `run.sh` + Flask skeleton
 3. Implement `api/geo.py` (polyline decoding + Haversine)
 4. Implement `POST /api/plan` route wiring all components together
@@ -271,7 +271,7 @@ Example: `state.js`, `map.js`, `app.js`
 
 **`localStorage` keys:** `SCREAMING_SNAKE_CASE` constants, defined only in `state.js`.
 ```js
-const SETTINGS_KEY = "checkov_settings";  // defined once, referenced everywhere
+const SETTINGS_KEY = "chekov_settings";  // defined once, referenced everywhere
 ```
 Never use raw string literals for localStorage keys outside `state.js`.
 
@@ -339,7 +339,7 @@ def plan_trip(): ...
 ```
 
 **Module responsibilities (strict):**
-- `api/pricing.py` — GeoJSON fetch, price parsing, autonomy filtering. Ported from `checkov.py`.
+- `api/pricing.py` — GeoJSON fetch, price parsing, autonomy filtering. Ported from `chekov.py`.
 - `api/geo.py` — polyline decoding, Haversine distance. All geospatial math lives here.
 - `api/routes.py` — HTTP layer only. Calls functions from `pricing.py` and `geo.py`. No business logic inline.
 
@@ -442,7 +442,7 @@ graph LR
 ### Complete Project Directory Structure
 
 ```
-checkov/
+chekov/
 ├── .env                          # GOOGLE_MAPS_API_KEY, GEMINI_API_KEY (gitignored)
 ├── .env.example                  # Template with key names, empty values
 ├── .gitignore                    # .env, __pycache__/, *.pyc
@@ -450,7 +450,7 @@ checkov/
 ├── requirements.txt              # flask==3.1.3, python-dotenv, requests, pyyaml, colorama, google-adk>=1.0
 ├── run.sh                        # Launch script: loads .env, starts ADK agent (port 5001) + Flask (port 5000)
 ├── stations.yaml                 # Preserved (existing CLI)
-├── checkov.py                  # Preserved (existing CLI)
+├── chekov.py                  # Preserved (existing CLI)
 ├── app.py                        # Flask app factory: creates app, registers Blueprint
 ├── agent/                        # Google ADK agent package
 │   ├── __init__.py              # exports root_agent for `adk api_server`
@@ -461,7 +461,7 @@ checkov/
 │   ├── routes.py                 # Blueprint; POST /api/plan, POST /api/chat
 │   ├── pricing.py                # fetch_stations, parse_price_value, detect_stale_prices,
 │   │                             # filter_by_autonomy, build_recommendation — ported from
-│   │                             # checkov.py + anomaly detection (net-new)
+│   │                             # chekov.py + anomaly detection (net-new)
 │   └── geo.py                    # decode_polyline, haversine, find_stations_in_corridor,
 │                                 # distance_along_route
 ├── static/
@@ -677,7 +677,7 @@ Flask proxies using `requests.post` (10 s hard timeout — hard abort prevents h
 
 ```json
 {
-  "app_name": "checkov_assistant",
+  "app_name": "chekov_assistant",
   "user_id": "local_user",
   "session_id": "a1b2c3d4-e5f6-...",
   "new_message": {
@@ -751,7 +751,7 @@ from google.adk.tools import FunctionTool
 from typing import Optional
 
 SYSTEM_INSTRUCTION = """
-You are the Checkov trip assistant. You help users plan fuel-efficient road trips in Quebec.
+You are the Chekov trip assistant. You help users plan fuel-efficient road trips in Quebec.
 
 You have four tools:
 - submit_trip: call when the user describes a new trip (origin, destination, optional range and waypoints)
@@ -787,7 +787,7 @@ def clear_filter() -> dict:
     return {"ok": True}
 
 root_agent = Agent(
-    name="checkov_assistant",
+    name="chekov_assistant",
     model="gemini-2.0-flash",
     instruction=SYSTEM_INSTRUCTION,
     tools=[submit_trip, add_waypoint, filter_stations_by_area, clear_filter],
@@ -877,7 +877,7 @@ _Epics 1–4 spot-checks (FR1–FR47):_
 | FR39 — density-adaptive radius (expand until ≥5 neighbors) | `api/pricing.py` `detect_stale_prices()` |
 | FR40 — structural discounter exemption list | `stations.yaml` `anomaly_filter_exemptions`; checked in `detect_stale_prices()` |
 | FR41 — kill switch (disable without code deploy) | `stations.yaml` `anomaly_filter_enabled`; checked in `api/routes.py` before calling filter |
-| FR42 — structured log entry per excluded station | `checkov.pricing` logger in `detect_stale_prices()` |
+| FR42 — structured log entry per excluded station | `chekov.pricing` logger in `detect_stale_prices()` |
 | FR43 — detect stale stations above local median (expensive direction) | `api/pricing.py` `detect_stale_prices()` — same `ANOMALY_THRESHOLD_CAD`, same exemption list, same log format |
 | FR44 — bidirectional anomaly detection | `api/pricing.py` `detect_stale_prices()` — both directions in one call; `float('inf')` sentinel applied to cheap and expensive outliers |
 | FR45 — `worst_station` field in `/api/plan` response | `api/pricing.py` `build_recommendation()` returns most expensive non-anomalous reachable station; `api/routes.py` includes it in the route object |
@@ -896,7 +896,7 @@ _Epics 1–4 spot-checks (FR1–FR47):_
 | NFR | Requirement | Architectural Mechanism |
 |---|---|---|
 | Performance | Full pipeline completes within a few seconds | Single `/api/plan` endpoint; GeoJSON fetched once per request, filtered in-memory; no DB round-trips |
-| Accuracy | Savings calculations within ¢0.1/L of live data | `parse_price_value()` reused verbatim from battle-tested `checkov.py` |
+| Accuracy | Savings calculations within ¢0.1/L of live data | `parse_price_value()` reused verbatim from battle-tested `chekov.py` |
 | Safety | Autonomy filter never recommends out-of-range stations | `filter_by_autonomy()` gates all recommendations — no out-of-range station reaches `build_recommendation()` |
 | Resilience | Graceful degradation on Régie Essence failure | HTTP 502 + structured error body; `#error-banner` in frontend displays it |
 | NFR12 | Chat response ≤5 s end-to-end | `gemini-2.0-flash` ~1–2 s; 10 s hard abort in Flask proxy; spinner covers perceived wait |
@@ -1013,7 +1013,7 @@ _Epic 5 spot-checks (FR48–FR66):_
 **First Implementation Priority:**
 1. Add `polyline` to `requirements.txt`
 2. Confirm `GOOGLE_MAPS_API_KEY` in `.env.example` covers both Directions API and Maps JS injection (same key, no second var needed)
-3. Extract `api/pricing.py` from `checkov.py`
+3. Extract `api/pricing.py` from `chekov.py`
 4. Create `app.py` Flask factory + `run.sh`
 
 ## Architecture Review Findings & Recommendations
@@ -1059,7 +1059,7 @@ _Review conducted by Winston (System Architect) on 2026-05-31. Absorbed into thi
 | Finding | Severity |
 |---|---|
 | **No caching layer.** Every `/api/plan` = 1 Régie Essence fetch (all of Quebec) + 1 Google Maps call + 1 disk YAML read. Régie data changes minutes-to-hours, not seconds. | **High** |
-| **Duplicated GeoJSON fetch & price parsing** between `checkov.py` and `api/pricing.py`. | Medium |
+| **Duplicated GeoJSON fetch & price parsing** between `chekov.py` and `api/pricing.py`. | Medium |
 | **`ADK_SERVICE_URL` hardcoded** to `http://localhost:5001` in `routes.py`. Will break the first real deployment. | Medium |
 | Logging is inconsistent — Python uses `logging`, JS has none. No request IDs to correlate frontend errors with backend logs. | Low |
 | No HTTP cache headers on `/api/plan` (POST anyway, but worth deciding). Static assets served via Flask, no CDN posture. | Low |
@@ -1067,7 +1067,7 @@ _Review conducted by Winston (System Architect) on 2026-05-31. Absorbed into thi
 ### 8.4 Critical Issues (ordered by leverage)
 
 1. **Cold cache on every request.** Two upstream calls per `/api/plan`. Single-user dev hides this. First production traffic spike won't.
-2. **`checkov.py` is orphaned legacy code that duplicates `pricing.py`.** Delete it, or extract a `regie_essence_client.py` and have both use it. Any fix to GeoJSON handling must currently be made twice.
+2. **`chekov.py` is orphaned legacy code that duplicates `pricing.py`.** Delete it, or extract a `regie_essence_client.py` and have both use it. Any fix to GeoJSON handling must currently be made twice.
 3. **`ADK_SERVICE_URL` hardcoded.** Move to env var, default to localhost.
 4. **`app.js` god-module risk.** Split before it hits 1000 LOC and becomes untouchable.
 5. **`map.js` module globals.** Wrap in a `MapController` factory so state is owned and disposable.
@@ -1080,7 +1080,7 @@ _Review conducted by Winston (System Architect) on 2026-05-31. Absorbed into thi
 1. **Single source of truth for agent actions.** Define each action as a Python dataclass/Pydantic model. Generate the ADK tool stub, the `routes.py` validator, and a JSON schema the frontend imports. Eliminates the three-place duplication flagged in §3 (mapping/ADK decision).
 2. **Cache Régie Essence at module level with TTL.** Even a 5-minute in-process cache eliminates the duplicate-fetch storm when a user adjusts settings and re-plans. ~20 lines.
 3. **Cache YAML config with mtime check.** Re-read only if the file changed. Trivial.
-4. **Delete or merge `checkov.py`.** Extract `regie_essence_client.py` if keeping the CLI; otherwise delete. The duplication is a footgun.
+4. **Delete or merge `chekov.py`.** Extract `regie_essence_client.py` if keeping the CLI; otherwise delete. The duplication is a footgun.
 5. **`MapController` factory wrapping `map.js` globals.** `function createMapController() { ... return { renderRoutes, renderMarkers, filterMarkers, ... } }`. Disposable, testable, multi-map-ready.
 6. **Env-var-driven `ADK_SERVICE_URL`.** `os.environ.get("ADK_SERVICE_URL", "http://localhost:5001")`. One-line ops unblock.
 

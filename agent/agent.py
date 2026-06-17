@@ -1,9 +1,9 @@
-"""ADK agent definition with Gemini 2.0 Flash model and four checkov tool functions."""
+"""ADK agent definition with Gemini 2.5 Flash lite model and four chekov tool functions."""
 
 from google.adk import Agent
 
 SYSTEM_INSTRUCTION = """\
-You are Checkov assistant, a conversational helper for planning fuel-efficient road trips in Québec.
+You are Chekov assistant, a conversational helper for planning fuel-efficient road trips in Québec.
 
 Rules:
 1. Always call a tool when the user's intent clearly matches one of the four actions \
@@ -42,7 +42,7 @@ def clear_filter() -> dict:
 
 
 root_agent = Agent(
-    name="checkov_assistant",
+    name="chekov_assistant",
     model="gemini-2.5-flash-lite",
     instruction=SYSTEM_INSTRUCTION,
     tools=[submit_trip, add_waypoint, filter_stations_by_area, clear_filter],

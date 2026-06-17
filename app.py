@@ -1,5 +1,5 @@
 """
-checkov — Flask application factory.
+chekov — Flask application factory.
 
 Creates and configures the Flask app. All routes are registered via Blueprint.
 Zero @app.route decorators live here.
@@ -12,7 +12,7 @@ import sys
 from dotenv import load_dotenv
 from flask import Flask
 
-logger = logging.getLogger("checkov")
+logger = logging.getLogger("chekov")
 if not logger.handlers:
     _handler = logging.StreamHandler(sys.stdout)
     _handler.setFormatter(logging.Formatter('%(message)s'))

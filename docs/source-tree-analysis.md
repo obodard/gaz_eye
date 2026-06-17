@@ -1,8 +1,8 @@
-# Source Tree Analysis — checkov
+# Source Tree Analysis — chekov
 
 ```
-checkov/
-├── checkov.py          # Main application — all business logic (270 LOC)
+chekov/
+├── chekov.py          # Main application — all business logic (270 LOC)
 ├── stations.yaml         # User configuration — cities, stations, fuel settings
 ├── requirements.txt      # Python dependencies: requests, pyyaml, colorama
 ├── README.md             # User-facing documentation and quick start guide
@@ -49,5 +49,5 @@ checkov/
 
 ## Entry Points
 
-- **Application:** `checkov.py` → `main()` via `if __name__ == "__main__"`
+- **Application:** `chekov.py` → `main()` via `if __name__ == "__main__"`
 - **Configuration:** `stations.yaml` (user-editable)

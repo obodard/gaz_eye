@@ -246,7 +246,7 @@ function hideError() {
 ### What NOT to Touch
 
 - `api/routes.py`, `api/pricing.py`, `api/geo.py` — no changes
-- `checkov.py` — must remain 100% unchanged
+- `chekov.py` — must remain 100% unchanged
 - `static/js/state.js` — no changes (already complete from Story 3.1)
 - `static/js/map.js` — do NOT call map rendering here; Story 3.4 handles that
 

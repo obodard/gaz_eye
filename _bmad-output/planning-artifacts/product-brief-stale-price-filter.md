@@ -1,6 +1,6 @@
 ---
 title: "Product Brief: Stale Price Anomaly Filter"
-project: checkov
+project: chekov
 status: "complete"
 created: "2026-05-01"
 updated: "2026-05-01"
@@ -10,7 +10,7 @@ inputs:
   - stations.yaml
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/architecture.md
-  - _bmad-output/planning-artifacts/product-brief-checkov.md
+  - _bmad-output/planning-artifacts/product-brief-chekov.md
   - _bmad-output/planning-artifacts/epics.md
   - _bmad-output/project-context.md
 ---
@@ -19,11 +19,11 @@ inputs:
 
 ## Executive Summary
 
-checkov's route-first architecture already holds the entire Quebec fuel dataset — ~3,000 stations — in memory for every `/api/plan` request. No other Quebec fuel price tool does this. Most apps are station-first: they look up prices on demand and have no spatial context. checkov, because it builds full trip corridors, possesses the one thing needed to make price data trustworthy: the ability to compare every station to its neighbors at the moment of query.
+chekov's route-first architecture already holds the entire Quebec fuel dataset — ~3,000 stations — in memory for every `/api/plan` request. No other Quebec fuel price tool does this. Most apps are station-first: they look up prices on demand and have no spatial context. chekov, because it builds full trip corridors, possesses the one thing needed to make price data trustworthy: the ability to compare every station to its neighbors at the moment of query.
 
 That capability is currently unused. Gas stations in Quebec are legally required to report their prices to the Régie de l'énergie, but enforcement of update frequency is lax. Some stations — particularly independent operators — go days or weeks without updating their listing. When fuel prices rise regionally, these stations retain a stale (artificially low) price in the public GeoJSON feed, silently distorting any recommendation system that treats all prices as equally valid.
 
-The Stale Price Anomaly Filter activates checkov's latent spatial advantage. Before recommendations are built, each station's price is compared to its geographic neighbors (density-adaptive radius, robust to both urban density and rural sparsity). Stations priced significantly below their local median are flagged as likely stale and excluded. Silent. Logged. Zero API changes. Just recommendations that can be trusted.
+The Stale Price Anomaly Filter activates chekov's latent spatial advantage. Before recommendations are built, each station's price is compared to its geographic neighbors (density-adaptive radius, robust to both urban density and rural sparsity). Stations priced significantly below their local median are flagged as likely stale and excluded. Silent. Logged. Zero API changes. Just recommendations that can be trusted.
 
 ## The Problem
 
@@ -31,7 +31,7 @@ The `/api/plan` endpoint recommends the cheapest reachable station per corridor 
 
 The failure mode: a station that last updated 72 hours ago at 158.9¢/L now shows as cheapest in a corridor where the market has moved to 165¢/L. The recommendation engine routes the user toward it. The user arrives and pays current market price — or discovers the station has no posted price at all. The app has given confidently wrong guidance.
 
-This is not a rare edge case. The Régie de l'énergie's own data freshness is documented as a medium-severity risk in checkov's product brief. User communities in r/montreal and r/Quebec regularly describe this exact failure from GasBuddy and Prix-Essence.ca. It is the known, systematic failure mode of every app that consumes regulatory fuel data without validation — and none of checkov's competitors have solved it.
+This is not a rare edge case. The Régie de l'énergie's own data freshness is documented as a medium-severity risk in chekov's product brief. User communities in r/montreal and r/Quebec regularly describe this exact failure from GasBuddy and Prix-Essence.ca. It is the known, systematic failure mode of every app that consumes regulatory fuel data without validation — and none of chekov's competitors have solved it.
 
 The primary corridor at risk: Montréal → Laurentians (Mont-Tremblant, Duhamel). Rural independent stations in this zone are the most likely to have stale prices and the least likely to be caught by a naive filter, because their neighbors are sparse and far apart.
 
@@ -62,9 +62,9 @@ Anomalous stations are automatically excluded by the existing `build_recommendat
 
 No existing Quebec fuel price tool — GasBuddy, Prix-Essence.ca, Gasoline.ca — applies spatial anomaly detection to the Régie de l'énergie feed. All treat every listed price as equally valid. GasBuddy's crowdsourced approach is itself stale by design. The government's own NRCan disclaimer acknowledges that published fuel prices "may not reflect the most current prices."
 
-The competitive moat here is architectural, not algorithmic. Competitors cannot add this filter without a second network call, a cache layer, or a spatial database query per request. checkov already has the data in memory. The filter is computationally free relative to what's already running.
+The competitive moat here is architectural, not algorithmic. Competitors cannot add this filter without a second network call, a cache layer, or a spatial database query per request. chekov already has the data in memory. The filter is computationally free relative to what's already running.
 
-The exemption list is a second quiet moat: checkov explicitly models Quebec's structural discount tier. The recommendations are correct for both genuinely-cheap stations and cheap-by-discount-design stations — a distinction no other app makes.
+The exemption list is a second quiet moat: chekov explicitly models Quebec's structural discount tier. The recommendations are correct for both genuinely-cheap stations and cheap-by-discount-design stations — a distinction no other app makes.
 
 ## Who This Serves
 
@@ -84,7 +84,7 @@ The exemption list is a second quiet moat: checkov explicitly models Quebec's st
 - `anomaly_filter_exemptions` list in `stations.yaml` — case-insensitive substring patterns matched against station `name` field
 - `anomaly_filter_enabled` boolean in `stations.yaml` — global kill switch
 - `ANOMALY_THRESHOLD_CAD` constant in `api/pricing.py` (default: `0.05` $/L = 5¢/L)
-- Structured log entry per excluded station via existing `checkov.pricing` logger
+- Structured log entry per excluded station via existing `chekov.pricing` logger
 - Unit tests in `tests/test_pricing.py` — covering: normal exclusion, exemption bypass, sparse rural fallback (< 5 neighbors in 50km), price-drop inversion, kill switch
 
 **Out of scope (v1):**

@@ -21,7 +21,7 @@ And the existing `cities`, `settings` structure is completely unchanged.
 
 **AC4:** Given `anomaly_filter_enabled: false` in `stations.yaml` and a trip is requested, when the route handler processes the request, then `detect_stale_prices()` is NOT called — the pipeline proceeds directly from corridor matching to `filter_by_autonomy()`. No code deploy is required to toggle this behaviour; editing `stations.yaml` is sufficient.
 
-**AC5:** Given `detect_stale_prices()` excludes a station (sets its price to `float('inf')`), when the `checkov.pricing` logger emits the exclusion entry, then the log message contains all of: station name, station `price_per_litre` (dollars, before exclusion), local median price (dollars), neighbor count used, radius used (km), and the Régie Essence `data_timestamp`. The log is emitted at `INFO` level — it does not appear in the API response body.
+**AC5:** Given `detect_stale_prices()` excludes a station (sets its price to `float('inf')`), when the `chekov.pricing` logger emits the exclusion entry, then the log message contains all of: station name, station `price_per_litre` (dollars, before exclusion), local median price (dollars), neighbor count used, radius used (km), and the Régie Essence `data_timestamp`. The log is emitted at `INFO` level — it does not appear in the API response body.
 
 **AC6:** Given `api/routes.py` loads filter config from `stations.yaml`, when `anomaly_filter_exemptions` is missing from `stations.yaml`, then the route handler defaults to an empty exemptions list and continues without error.
 
@@ -182,7 +182,7 @@ from api.pricing import fetch_stations, filter_by_autonomy, build_recommendation
 
 ### Logging Format for Exclusion
 
-Use the existing `checkov.pricing` logger (already defined in `api/pricing.py`). The log message format:
+Use the existing `chekov.pricing` logger (already defined in `api/pricing.py`). The log message format:
 ```
 Stale price excluded: Station Petro-Canada | price=1.485 | median=1.553 | neighbors=8 | radius=5km | ts=2026-05-01T00:00:00Z
 ```

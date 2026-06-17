@@ -1,8 +1,8 @@
 """
-checkov pricing module.
+chekov pricing module.
 
 Provides GeoJSON fetch from Régie Essence Québec and price parsing logic.
-Ported from checkov.py with the following key differences:
+Ported from chekov.py with the following key differences:
 - fetch_stations() raises exceptions instead of calling sys.exit()
 - parse_price_value() accepts a raw string (or None), not a dict
 - Returns station list suitable for the /api/plan pipeline
@@ -20,7 +20,7 @@ import requests
 
 from api.geo import haversine
 
-logger = logging.getLogger("checkov.pricing")
+logger = logging.getLogger("chekov.pricing")
 if not logger.handlers:
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(logging.Formatter('%(message)s'))

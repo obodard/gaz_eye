@@ -3,7 +3,7 @@
  * SETTINGS_KEY and DEFAULT_SETTINGS are the single source of truth — never duplicated elsewhere.
  */
 
-const SETTINGS_KEY = "checkov_settings";
+const SETTINGS_KEY = "chekov_settings";
 
 /** Session ID for ADK chat — regenerated on each page load, never persisted. */
 export const sessionId = crypto.randomUUID();

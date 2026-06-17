@@ -1,5 +1,5 @@
 """
-checkov API Blueprint.
+chekov API Blueprint.
 
 All HTTP routes live here. app.py only registers this blueprint — no routes
 are defined in app.py directly.
@@ -23,7 +23,7 @@ from api.pricing import (
 )
 
 bp = Blueprint("api", __name__)
-logger = logging.getLogger("checkov.routes")
+logger = logging.getLogger("chekov.routes")
 
 DIRECTIONS_URL = "https://maps.googleapis.com/maps/api/directions/json"
 ADK_SERVICE_URL = "http://localhost:5001"
@@ -45,7 +45,7 @@ def _format_drive_time(seconds: int) -> str:
 
 @bp.route("/")
 def serve_index():
-    """Serve the checkov SPA shell as a Jinja2 template."""
+    """Serve the chekov SPA shell as a Jinja2 template."""
     return render_template(
         "index.html",
         google_maps_api_key=current_app.config["GOOGLE_MAPS_API_KEY"]

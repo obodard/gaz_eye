@@ -74,8 +74,8 @@ bp = Blueprint("api", __name__)
 
 @bp.route("/")
 def serve_index():
-    """Serve the checkov SPA shell (placeholder until Story 3.1)."""
-    return render_template_string("<h1>checkov</h1>"), 200
+    """Serve the chekov SPA shell (placeholder until Story 3.1)."""
+    return render_template_string("<h1>chekov</h1>"), 200
 ```
 
 **This story adds `POST /api/plan` alongside the existing `GET /` route — do NOT remove `serve_index`.**
@@ -281,7 +281,7 @@ Set `GOOGLE_MAPS_API_KEY` to a dummy value in the test fixture or via `monkeypat
 ### Previous Story Learnings Applied
 
 From Stories 1.1–1.3:
-- `filter_by_autonomy` and `build_recommendation` are in `api/pricing.py` — import from there, not `checkov.py`
+- `filter_by_autonomy` and `build_recommendation` are in `api/pricing.py` — import from there, not `chekov.py`
 - `fetch_stations` returns a **tuple** `(stations, data_timestamp)` — destructure correctly: `all_stations, data_timestamp = fetch_stations(fuel_type)`
 - `rank_routes` mutates dicts in-place and returns the list — call it, but the original `routes` list is already updated
 - Use `Optional[float]` for `buffer_km=None` to trigger the default buffer logic in `filter_by_autonomy`
@@ -292,7 +292,7 @@ From Stories 1.1–1.3:
 - `GET /` route (`serve_index`) in `api/routes.py` — preserve it unchanged (used until Story 3.1)
 - `api/pricing.py` — no changes required
 - `api/geo.py` — no changes required (Stories 2.1 and 2.2 already built it)
-- `checkov.py` — must remain 100% unchanged
+- `chekov.py` — must remain 100% unchanged
 - `tests/test_pricing.py` and `tests/test_geo.py` — no changes required
 
 ## Dev Agent Record

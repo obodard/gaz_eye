@@ -25,7 +25,7 @@
 - **O(n×m) performance in `find_stations_in_corridor`** — for each of ~3,000 Quebec stations, every polyline point is visited; for long routes (hundreds of points) this is a bottleneck. Consider bounding-box pre-filter or spatial index.
 - **`distance_along_route` snaps to nearest polyline vertex, not nearest segment point** — for stations near a long edge midpoint, the cumulative distance reported can differ materially from the true route distance. Acceptable for MVP but limits accuracy at scale.
 - **Unpinned dependencies** — `requests`, `python-dotenv`, `pyyaml`, `colorama`, `polyline` have no version constraints; build is non-reproducible. Acceptable per current project convention but worth pinning before production.
-- **`colorama` leftover in `requirements.txt`** — imported in `checkov.py` but not in any `api/` or `app.py` file. Low priority to clean up.
+- **`colorama` leftover in `requirements.txt`** — imported in `chekov.py` but not in any `api/` or `app.py` file. Low priority to clean up.
 
 ---
 

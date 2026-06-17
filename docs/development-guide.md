@@ -1,4 +1,4 @@
-# Development Guide — checkov
+# Development Guide — chekov
 
 ## Prerequisites
 
@@ -42,7 +42,7 @@ Find valid addresses at [regieessencequebec.ca](https://regieessencequebec.ca/).
 ## Running
 
 ```bash
-python3 checkov.py
+python3 chekov.py
 ```
 
 Output is a color-coded terminal table showing:

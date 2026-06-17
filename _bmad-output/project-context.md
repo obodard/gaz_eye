@@ -1,5 +1,5 @@
 ---
-project_name: 'checkov'
+project_name: 'chekov'
 user_name: 'Olivier'
 date: '2026-06-15'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'pricing_geo_rules', 'adk_rules', 'critical_rules']
@@ -21,7 +21,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **python-dotenv** — `.env` loading on startup; `GOOGLE_MAPS_API_KEY` required at runtime
 - **requests** — HTTP client for GeoJSON fetch and Google Maps Directions API
 - **pyyaml** — YAML config parser (`stations.yaml`)
-- **colorama** — terminal output only in `checkov.py` (not in Flask app)
+- **colorama** — terminal output only in `chekov.py` (not in Flask app)
 - **polyline** — Google Maps encoded polyline decode/encode
 - **google-adk ≥1.0** — ADK agent definition; runtime service at `http://localhost:5001`
 - **Data source:** `https://regieessencequebec.ca/stations.geojson.gz` (public, no API key)
@@ -32,9 +32,9 @@ _This file contains critical rules and patterns that AI agents must follow when 
 ### Language-Specific Rules
 
 - **Type hints:** Use built-in generics (`dict[str, Any]`, `list[dict]`) — only import `Any`, `Optional` from `typing`; never import `Dict`, `List`, `Tuple` from typing
-- **Logging:** Use named `logging.getLogger("checkov.<module>")` — formatter is `%(message)s` only (no timestamps/levels). Add handler only if `not logger.handlers` to avoid duplicate output
+- **Logging:** Use named `logging.getLogger("chekov.<module>")` — formatter is `%(message)s` only (no timestamps/levels). Add handler only if `not logger.handlers` to avoid duplicate output
 - **Error contracts differ by module:**
-  - `checkov.py`: calls `sys.exit(1)` on fatal errors
+  - `chekov.py`: calls `sys.exit(1)` on fatal errors
   - `api/pricing.py`: raises `requests.RequestException` or `ValueError` — callers must catch
   - `api/routes.py`: catches exceptions and returns `jsonify({"error": ..., "message": ...})` with 4xx/5xx
 - **`float('inf')` is the universal sentinel** for missing/unparseable/unavailable prices — check with `== float('inf')`, not `math.isinf()`, unless both +inf and -inf must be caught
@@ -113,9 +113,9 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **`waypoints` join format:** Google Maps Directions API expects `"|".join(waypoints)` as a pipe-separated string in the `params` dict — not a list
 - **Stale price log format is load-bearing:** The log line in `detect_stale_prices` includes `name`, `price`, `median`, `neighbors`, `radius`, and `data_timestamp` — preserve this format for observability
 - **`stations.yaml` `anomaly_filter_exemptions` is a list** — but the code defensively wraps a non-list value in a list; preserve this guard when reading the config
-- **No OOP in `api/` modules:** All functions are module-level; no classes. `checkov.py` is also class-free
+- **No OOP in `api/` modules:** All functions are module-level; no classes. `chekov.py` is also class-free
 - **French content everywhere:** Station names, addresses, and user-facing messages may contain `é è ê à ù ç` — never strip or normalize; always `encoding="utf-8"`
-- **`checkov.py` is a standalone CLI** — it is NOT imported by the Flask app; changes to it do not affect the web application
+- **`chekov.py` is a standalone CLI** — it is NOT imported by the Flask app; changes to it do not affect the web application
 
 ---
 
