@@ -109,6 +109,7 @@ def plan():
         "origin": origin,
         "destination": destination,
         "alternatives": "true",
+        "region": "CA",
         "key": api_key,
     }
     if waypoints:

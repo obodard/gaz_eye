@@ -100,6 +100,8 @@ class TestServeIndex:
         resp = client.get("/")
         html = resp.data.decode("utf-8")
         assert "key=test_api_key_dummy" in html
+        assert "language=en" in html
+        assert "region=CA" in html
         assert "window.GOOGLE_MAPS_API_KEY" not in html
         assert '"test_api_key_dummy"' not in html
         assert "'test_api_key_dummy'" not in html
@@ -111,6 +113,17 @@ class TestServeIndex:
 
 class TestPlanHappyPath:
     """Success case for POST /api/plan."""
+
+    @patch("api.routes.requests.get")
+    @patch("api.routes.fetch_stations")
+    def test_google_maps_request_uses_canadian_region(self, mock_fetch, mock_get, client):
+        """Directions API requests should bias geocoding and routing to Canada."""
+        mock_fetch.return_value = (_make_stations(1), "2026-05-01T00:00:00Z")
+        mock_get.return_value = _make_mock_get(_make_gm_response(1))
+
+        client.post("/api/plan", json=_VALID_BODY)
+
+        assert mock_get.call_args.kwargs["params"]["region"] == "CA"
 
     @patch("api.routes.requests.get")
     @patch("api.routes.fetch_stations")
